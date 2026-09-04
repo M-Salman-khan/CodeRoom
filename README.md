@@ -465,46 +465,6 @@ All 32 test cases verify real HTTP and WebSocket operations.
 
 ---
 
-## Project Structure
-
-```text
-├── server.ts                   # Custom Node server attaching HTTP and WebSockets on port 3000
-├── test-coderoom.ts            # Automated E2E verification test suite
-├── prisma/
-│   ├── schema.prisma           # Database schema
-│   └── seed.ts                 # Demo seed script
-├── src/
-│   ├── app/
-│   │   ├── page.tsx            # CodeRoom landing page
-│   │   ├── login/page.tsx      # User login page
-│   │   ├── register/page.tsx   # User registration page
-│   │   ├── dashboard/page.tsx  # User dashboard with room cards
-│   │   ├── room/[roomId]/      # Collaborative room workspace
-│   │   ├── settings/page.tsx   # User and editor settings
-│   │   └── api/                # Next.js API route handlers (auth, rooms, files, messages)
-│   ├── components/
-│   │   ├── CreateRoomModal.tsx # Modal to create rooms
-│   │   ├── JoinRoomModal.tsx   # Modal to join rooms by code
-│   │   └── room/
-│   │       ├── RoomHeader.tsx  # Navigation, connection status, online users
-│   │       ├── FileExplorer.tsx# Hierarchical file tree
-│   │       ├── CodeEditor.tsx  # Monaco editor + Yjs CRDT binding
-│   │       ├── RoomChat.tsx    # Real-time room chat
-│   │       ├── StatusBar.tsx   # Bottom bar with save status & position
-│   │       ├── ShareModal.tsx  # Dynamic invite links & room codes
-│   │       └── RoomSettingsModal.tsx
-│   ├── lib/
-│   │   ├── auth.ts             # Password hashing, JWT sessions, cookies
-│   │   ├── db.ts               # Prisma client singleton
-│   │   ├── utils.ts            # Language detection, colors, code generators
-│   │   └── y-monaco.ts         # Custom Monaco-Yjs CRDT binding
-│   └── server/
-│       ├── polyfill.js         # Node.js AsyncLocalStorage runtime polyfill
-│       ├── room-handler.ts     # Real-time chat, presence, and file event broadcasts
-│       └── yjs-handler.ts      # Real-time binary Yjs synchronization & DB persistence
-```
-
----
 
 ## License
 
