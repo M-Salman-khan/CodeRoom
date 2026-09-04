@@ -21,7 +21,7 @@ jobs:
             set -e
 
             echo "==> Going to project directory"
-            cd ~/LAN-Share
+            cd ~/CodeRoom
 
             echo "==> Pulling latest code"
             git pull origin main
