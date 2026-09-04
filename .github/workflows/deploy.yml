@@ -8,15 +8,33 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    env:
+      VM_HOST: ${{ secrets.VM_HOST || vars.VM_HOST }}
+      VM_USER: ${{ secrets.VM_USER || secrets.VM_USERNAME || vars.VM_USER || vars.VM_USERNAME }}
+      VM_SSH_KEY: ${{ secrets.VM_SSH_KEY || secrets.VM_PRIVATE_KEY || vars.VM_SSH_KEY || vars.VM_PRIVATE_KEY }}
+      VM_PORT: ${{ secrets.VM_PORT || vars.VM_PORT || '22' }}
 
     steps:
+      - name: Validate deploy configuration
+        run: |
+          missing=0
+          for var in VM_HOST VM_USER VM_SSH_KEY; do
+            if [ -z "${!var}" ]; then
+              echo "::error::${var} is not configured. Set it as a repository secret or variable."
+              missing=1
+            fi
+          done
+          if [ "$missing" -ne 0 ]; then
+            exit 1
+          fi
+
       - name: Deploy to VM
         uses: appleboy/ssh-action@v1
         with:
-          host: ${{ secrets.VM_HOST }}
-          username: ${{ secrets.VM_USER }}
-          key: ${{ secrets.VM_SSH_KEY }}
-          port: ${{ secrets.VM_PORT }}
+          host: ${{ env.VM_HOST }}
+          username: ${{ env.VM_USER }}
+          key: ${{ env.VM_SSH_KEY }}
+          port: ${{ env.VM_PORT }}
           script: |
             set -e
 
