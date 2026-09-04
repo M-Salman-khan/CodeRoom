@@ -2,6 +2,7 @@
 node_modules
 .pnpm-store
 
+
 # Next.js build output
 .next
 out
