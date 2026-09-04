@@ -4,6 +4,7 @@
 
 A lightweight, full-stack, collaborative code room designed for teams, classmates, and friends. CodeRoom combines the real-time synchronization of Google Docs, the power of Monaco Editor (VS Code), and built-in room chat into an intuitive, self-hosted web application accessible seamlessly over both **Local Area Networks (LAN)** and the **Public Internet**.
 
+
 ---
 
 ## Table of Contents
