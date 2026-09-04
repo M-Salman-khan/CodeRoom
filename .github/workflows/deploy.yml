@@ -33,7 +33,7 @@ jobs:
             sudo docker compose build --no-cache
 
             echo "==> Starting containers"
-            sudo docker compose up -d
+            sudo docker compose up -d --remove-orphans
 
             echo "==> Removing unused Docker images"
             sudo docker image prune -f
