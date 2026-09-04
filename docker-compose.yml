@@ -1,0 +1,36 @@
+services:
+  coderoom:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: coderoom:latest
+    container_name: coderoom
+    restart: unless-stopped
+    ports:
+      - "${PORT:-3000}:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - HOST=0.0.0.0
+      - DATABASE_URL=file:/app/data/coderoom.db
+      - AUTH_SECRET=${AUTH_SECRET:-coderoom-lan-super-secret-key-at-least-32-chars-long}
+      - NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
+      - SEED_DATABASE=${SEED_DATABASE:-false}
+    volumes:
+      # Persistent storage for SQLite database across container restarts and rebuilds
+      - coderoom-data:/app/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:3000/ || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+    # LAN Access Note:
+    # On Linux, if you want CodeRoom to directly detect and display host LAN IP addresses
+    # in the startup terminal banner, uncomment "network_mode: host" below and comment out "ports:".
+    # network_mode: host
+
+volumes:
+  coderoom-data:
+    name: coderoom-data

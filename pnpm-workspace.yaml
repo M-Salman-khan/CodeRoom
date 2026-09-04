@@ -1,0 +1,13 @@
+packages:
+  - .
+
+allowBuilds:
+  '@prisma/client': false
+  '@prisma/engines': true
+  esbuild: true
+  msgpackr-extract: true
+  prisma: true
+  unrs-resolver: false
+  workerd: true
+minimumReleaseAgeExclude:
+  - lucide-react@1.40.0

@@ -3,21 +3,87 @@
 @tailwind utilities;
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #0d1117;
+  --surface: #161b22;
+  --surface-hover: #21262d;
+  --panel: #0f141c;
+  --panel-header: #141a24;
+  --border: #30363d;
+  --foreground: #e6edf3;
+  --muted: #8b949e;
+  --accent: #3b82f6;
+  --accent-hover: #2563eb;
+  --success: #238636;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+.light {
+  --background: #ffffff;
+  --surface: #f6f8fa;
+  --surface-hover: #eaeef2;
+  --panel: #f6f8fa;
+  --panel-header: #ebeef2;
+  --border: #d0d7de;
+  --foreground: #1f2328;
+  --muted: #656d76;
+  --accent: #0969da;
+  --accent-hover: #085cc0;
+  --success: #1a7f37;
 }
 
 body {
   color: var(--foreground);
   background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  overflow-x: hidden;
+}
+
+/* Custom developer scrollbars */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #30363d;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #484f58;
+}
+
+/* Yjs Monaco Remote Cursor and Selection Styles */
+.yRemoteSelection {
+  opacity: 0.35;
+  transition: opacity 0.15s ease;
+}
+
+.yRemoteSelectionHead {
+  position: absolute;
+  box-sizing: border-box;
+  height: 100%;
+  border-left: 2px solid;
+}
+
+.yRemoteSelectionHead::after {
+  position: absolute;
+  top: -1.3em;
+  left: -2px;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: normal;
+  padding: 1px 5px;
+  border-radius: 3px;
+  color: #ffffff;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0.9;
+  z-index: 20;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.4);
 }
 
 @layer utilities {

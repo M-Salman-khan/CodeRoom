@@ -1,0 +1,90 @@
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id           String       @id @default(cuid())
+  username     String       @unique
+  passwordHash String
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  ownedRooms   Room[]       @relation("RoomOwner")
+  memberships  RoomMember[]
+  messages     Message[]
+
+  @@index([username])
+}
+
+model Room {
+  id           String       @id @default(cuid())
+  roomCode     String       @unique
+  name         String
+  description  String?
+  passwordHash String?
+  isPublic     Boolean      @default(true)
+  ownerId      String
+  owner        User         @relation("RoomOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  members      RoomMember[]
+  files        File[]
+  messages     Message[]
+
+  @@index([roomCode])
+  @@index([ownerId])
+}
+
+model RoomMember {
+  id       String   @id @default(cuid())
+  roomId   String
+  userId   String
+  role     String   @default("MEMBER") // "OWNER" | "MEMBER"
+  joinedAt DateTime @default(now())
+
+  room     Room     @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([roomId, userId])
+  @@index([roomId])
+  @@index([userId])
+}
+
+model File {
+  id        String   @id @default(cuid())
+  roomId    String
+  parentId  String?
+  name      String
+  type      String   @default("file") // "file" | "folder"
+  language  String?  @default("plaintext")
+  content   String   @default("")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  room      Room     @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  parent    File?    @relation("FolderHierarchy", fields: [parentId], references: [id], onDelete: Cascade)
+  children  File[]   @relation("FolderHierarchy")
+
+  @@index([roomId])
+  @@index([parentId])
+}
+
+model Message {
+  id        String   @id @default(cuid())
+  roomId    String
+  userId    String
+  content   String
+  createdAt DateTime @default(now())
+
+  room      Room     @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([roomId, createdAt])
+  @@index([userId])
+}

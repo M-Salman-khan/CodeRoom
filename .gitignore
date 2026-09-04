@@ -27,6 +27,13 @@ yarn-error.log*
 
 # local env files
 .env*.local
+.env
+
+# database
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
 
 # vercel
 .vercel
@@ -34,3 +41,4 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
