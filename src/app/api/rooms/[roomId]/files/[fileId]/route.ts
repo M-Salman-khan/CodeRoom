@@ -54,7 +54,7 @@ export async function PATCH(
     }
 
     const body = await req.json();
-    const { name, content, language } = body;
+    const { name, content, language, parentId } = body;
 
     const updateData: Record<string, unknown> = {};
 
@@ -72,6 +72,66 @@ export async function PATCH(
 
     if (language !== undefined && existing.type === "file") {
       updateData.language = language;
+    }
+
+    if (parentId !== undefined) {
+      if (parentId === existing.id) {
+        return NextResponse.json(
+          { error: "Cannot move an item into itself" },
+          { status: 400 }
+        );
+      }
+
+      if (parentId !== null) {
+        const targetFolder = await db.file.findUnique({
+          where: { id: parentId },
+        });
+
+        if (!targetFolder || targetFolder.roomId !== existing.roomId || targetFolder.type !== "folder") {
+          return NextResponse.json(
+            { error: "Destination folder not found" },
+            { status: 400 }
+          );
+        }
+
+        // Prevent moving a folder into its own subfolder
+        if (existing.type === "folder") {
+          let currId: string | null = targetFolder.parentId;
+          while (currId) {
+            if (currId === existing.id) {
+              return NextResponse.json(
+                { error: "Cannot move a folder into its own subfolder" },
+                { status: 400 }
+              );
+            }
+            const parentFolder: { parentId: string | null } | null = await db.file.findUnique({
+              where: { id: currId },
+              select: { parentId: true },
+            });
+            currId = parentFolder?.parentId ?? null;
+          }
+        }
+      }
+
+      // Check for duplicate name in destination
+      const destName = updateData.name ? (updateData.name as string) : existing.name;
+      const duplicate = await db.file.findFirst({
+        where: {
+          roomId: existing.roomId,
+          parentId: parentId,
+          name: destName,
+          id: { not: existing.id },
+        },
+      });
+
+      if (duplicate) {
+        return NextResponse.json(
+          { error: `An item named "${destName}" already exists in the destination.` },
+          { status: 409 }
+        );
+      }
+
+      updateData.parentId = parentId;
     }
 
     const updated = await db.file.update({

@@ -475,6 +475,61 @@ export default function RoomPage() {
     }
   };
 
+  const handleMoveFile = async (fileId: string, newParentId: string | null) => {
+    if (!room?.id) return;
+    try {
+      const res = await fetch(`/api/rooms/${room.id}/files/${fileId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+        body: JSON.stringify({ parentId: newParentId }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        const updated = data.file;
+        setFiles((prev) => prev.map((f) => (f.id === fileId ? { ...f, ...updated } : f)));
+        setOpenFiles((prev) =>
+          prev.map((f) => (f.id === fileId ? { ...f, ...updated } : f))
+        );
+        sendWsEvent("file:update", { file: updated });
+      } else {
+        const data = await res.json().catch(() => ({}));
+        alert(data.error || "Failed to move item.");
+      }
+    } catch (err) {
+      console.error("Error moving file:", err);
+    }
+  };
+
+  const handleDuplicateFile = async (fileId: string, targetParentId?: string | null) => {
+    if (!room?.id) return;
+    try {
+      const res = await fetch(`/api/rooms/${room.id}/files/${fileId}/duplicate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+        body: JSON.stringify({ targetParentId }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        const createdFiles: FileItem[] = data.files || [];
+        setFiles((prev) => {
+          const prevIds = new Set(prev.map((f) => f.id));
+          const newItems = createdFiles.filter((f) => !prevIds.has(f.id));
+          return [...prev, ...newItems];
+        });
+        createdFiles.forEach((file) => {
+          sendWsEvent("file:create", { file });
+        });
+      } else {
+        const data = await res.json().catch(() => ({}));
+        alert(data.error || "Failed to duplicate item.");
+      }
+    } catch (err) {
+      console.error("Error duplicating file:", err);
+    }
+  };
+
   const handleSelectFile = (file: FileItem) => {
     if (file.type !== "file") return;
     setActiveFileId(file.id);
@@ -656,6 +711,8 @@ export default function RoomPage() {
             onCreateFile={handleCreateFile}
             onRenameFile={handleRenameFile}
             onDeleteFile={handleDeleteFile}
+            onMoveFile={handleMoveFile}
+            onDuplicateFile={handleDuplicateFile}
           />
         </div>
 
