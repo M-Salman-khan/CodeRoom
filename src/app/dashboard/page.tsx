@@ -54,9 +54,21 @@ function DashboardContent() {
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isJoinOpen, setIsJoinOpen] = useState(false);
 
+  const getAuthHeaders = useCallback(() => {
+    const token =
+      typeof window !== "undefined"
+        ? sessionStorage.getItem("coderoom_token") || localStorage.getItem("coderoom_token") || ""
+        : "";
+    const headers: Record<string, string> = {};
+    if (token) {
+      headers["Authorization"] = `Bearer ${token}`;
+    }
+    return headers;
+  }, []);
+
   const fetchRooms = useCallback(async () => {
     try {
-      const res = await fetch("/api/rooms");
+      const res = await fetch("/api/rooms", { headers: getAuthHeaders() });
       if (res.status === 401) {
         router.push("/login");
         return;
@@ -70,11 +82,11 @@ function DashboardContent() {
     } finally {
       setLoading(false);
     }
-  }, [router]);
+  }, [router, getAuthHeaders]);
 
   useEffect(() => {
     // Check current user
-    fetch("/api/auth/me")
+    fetch("/api/auth/me", { headers: getAuthHeaders() })
       .then((res) => {
         if (!res.ok) {
           router.push("/login");
@@ -85,6 +97,10 @@ function DashboardContent() {
       .then((data) => {
         if (data?.user) {
           setUser(data.user);
+          if (data.token) {
+            sessionStorage.setItem("coderoom_token", data.token);
+            localStorage.setItem("coderoom_token", data.token);
+          }
           fetchRooms();
         }
       })
@@ -96,7 +112,7 @@ function DashboardContent() {
     const action = searchParams.get("action");
     if (action === "create") setIsCreateOpen(true);
     if (action === "join") setIsJoinOpen(true);
-  }, [router, searchParams, fetchRooms]);
+  }, [router, searchParams, fetchRooms, getAuthHeaders]);
 
   const handleLogout = async () => {
     try {

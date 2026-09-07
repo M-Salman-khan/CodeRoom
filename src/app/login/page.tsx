@@ -2,11 +2,10 @@
 
 import { useState, Suspense } from "react";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { Code2, ArrowRight, Lock, User, AlertCircle, Loader2 } from "lucide-react";
 
 function LoginForm() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const redirect = searchParams.get("redirect") || "/dashboard";
 
@@ -51,8 +50,7 @@ function LoginForm() {
         localStorage.setItem("coderoom_token", data.token);
       }
 
-      router.push(redirect);
-      router.refresh();
+      window.location.href = redirect;
     } catch {
       setError("Network error. Could not connect to the server.");
       setLoading(false);

@@ -2,11 +2,9 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { Code2, ArrowRight, Lock, User, AlertCircle, Loader2, CheckCircle } from "lucide-react";
 
 export default function RegisterPage() {
-  const router = useRouter();
 
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -65,8 +63,7 @@ export default function RegisterPage() {
         localStorage.setItem("coderoom_token", data.token);
       }
 
-      router.push("/dashboard");
-      router.refresh();
+      window.location.href = "/dashboard";
     } catch {
       setError("Network error. Could not connect to the server.");
       setLoading(false);

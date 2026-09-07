@@ -183,6 +183,22 @@ export function handleRoomConnection(
           break;
         }
 
+        case "code:run": {
+          broadcastToRoom(
+            roomId,
+            {
+              type: "code:run",
+              user: { id: user.id, username: user.username },
+              filename: payload.filename,
+              language: payload.language,
+              result: payload.result,
+              timestamp: Date.now(),
+            },
+            ws
+          );
+          break;
+        }
+
         default:
           break;
       }

@@ -78,6 +78,7 @@ export async function POST(req: Request) {
     );
 
     const isHttps =
+      req.url.startsWith("https://") ||
       req.headers.get("x-forwarded-proto") === "https" ||
       Boolean(process.env.FORCE_COOKIE_SECURE);
 
@@ -85,7 +86,7 @@ export async function POST(req: Request) {
       name: COOKIE_NAME,
       value: token,
       httpOnly: true,
-      secure: isHttps,
+      secure: isHttps && process.env.NODE_ENV === "production",
       sameSite: "lax",
       path: "/",
       maxAge: 7 * 24 * 60 * 60, // 7 days

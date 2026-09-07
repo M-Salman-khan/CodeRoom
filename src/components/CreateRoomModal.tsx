@@ -34,9 +34,16 @@ export default function CreateRoomModal({ isOpen, onClose, onSuccess }: CreateRo
     setLoading(true);
 
     try {
+      const token =
+        typeof window !== "undefined"
+          ? sessionStorage.getItem("coderoom_token") || localStorage.getItem("coderoom_token") || ""
+          : "";
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (token) headers["Authorization"] = `Bearer ${token}`;
+
       const res = await fetch("/api/rooms", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers,
         body: JSON.stringify({
           name: trimmed,
           description: description.trim() || undefined,

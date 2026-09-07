@@ -37,9 +37,16 @@ export default function JoinRoomModal({
     setLoading(true);
 
     try {
+      const token =
+        typeof window !== "undefined"
+          ? sessionStorage.getItem("coderoom_token") || localStorage.getItem("coderoom_token") || ""
+          : "";
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (token) headers["Authorization"] = `Bearer ${token}`;
+
       const res = await fetch(`/api/rooms/${code}/join`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers,
         body: JSON.stringify({
           password: password.trim() || undefined,
         }),

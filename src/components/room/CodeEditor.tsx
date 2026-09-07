@@ -10,6 +10,12 @@ import {
   WifiOff,
   WrapText,
   Map,
+  Play,
+  Terminal,
+  PanelLeftClose,
+  PanelLeftOpen,
+  PanelRightClose,
+  PanelRightOpen,
 } from "lucide-react";
 import * as Y from "yjs";
 import { WebsocketProvider } from "y-websocket";
@@ -17,6 +23,7 @@ import { MonacoBinding } from "@/lib/y-monaco";
 import type { editor } from "monaco-editor";
 import { FileItem } from "./FileExplorer";
 import { getLanguageFromFilename, getUserColor } from "@/lib/utils";
+import CompilerPanel from "./CompilerPanel";
 
 // Dynamically import Monaco Editor to avoid SSR issues
 const Monaco = dynamic(() => import("@monaco-editor/react"), {
@@ -42,6 +49,12 @@ interface CodeEditorProps {
   onCloseTab: (fileId: string) => void;
   onCursorChange?: (line: number, column: number) => void;
   onSaveStatusChange?: (status: SaveStatus) => void;
+  /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
+  onBroadcastRun?: (data: { filename: string; language: string; result: any }) => void;
+  leftPanelOpen?: boolean;
+  rightPanelOpen?: boolean;
+  onToggleLeftPanel?: () => void;
+  onToggleRightPanel?: () => void;
 }
 
 interface DisposableEditor {
@@ -63,6 +76,11 @@ export default function CodeEditor({
   onCloseTab,
   onCursorChange,
   onSaveStatusChange,
+  onBroadcastRun,
+  leftPanelOpen,
+  rightPanelOpen,
+  onToggleLeftPanel,
+  onToggleRightPanel,
 }: CodeEditorProps) {
   const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
   /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
@@ -78,6 +96,8 @@ export default function CodeEditor({
   const [fontSize, setFontSize] = useState(14);
   const [tabSize, setTabSize] = useState(2);
   const [editorTheme, setEditorTheme] = useState("vs-dark");
+  const [isTerminalCollapsed, setIsTerminalCollapsed] = useState(false);
+  const [runTrigger, setRunTrigger] = useState(0);
 
   const updateSaveStatus = useCallback(
     (status: SaveStatus) => {
@@ -336,6 +356,12 @@ export default function CodeEditor({
       }
     });
 
+    // Register Ctrl+Enter / Cmd+Enter to execute program
+    editorInstance.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter, () => {
+      setIsTerminalCollapsed(false);
+      setRunTrigger((prev) => prev + 1);
+    });
+
     if (activeFile) {
       setupCollaboration(editorInstance, activeFile);
     }
@@ -373,26 +399,26 @@ export default function CodeEditor({
           })}
         </div>
 
-        {/* Editor Controls & Save Status */}
-        <div className="flex items-center gap-2 shrink-0 ml-2">
+        {/* Editor Controls & Actions */}
+        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0 ml-auto pl-2">
           {/* Save Status */}
-          <div className="flex items-center gap-1.5 px-2 py-0.5 rounded text-[11px] font-medium text-muted">
+          <div className="hidden sm:flex items-center gap-1.5 px-2 py-0.5 rounded text-[11px] font-medium text-muted">
             {saveStatus === "saved" && (
               <>
                 <Check className="h-3 w-3 text-green-400" />
-                <span className="hidden sm:inline text-green-400/90">Saved</span>
+                <span className="hidden md:inline text-green-400/90">Saved</span>
               </>
             )}
             {saveStatus === "saving" && (
               <>
                 <RefreshCw className="h-3 w-3 text-amber-400 animate-spin" />
-                <span className="hidden sm:inline text-amber-400">Saving...</span>
+                <span className="hidden md:inline text-amber-400">Saving...</span>
               </>
             )}
             {saveStatus === "offline" && (
               <>
                 <WifiOff className="h-3 w-3 text-red-400" />
-                <span className="hidden sm:inline text-red-400">Offline</span>
+                <span className="hidden md:inline text-red-400">Offline</span>
               </>
             )}
           </div>
@@ -401,7 +427,7 @@ export default function CodeEditor({
           <button
             onClick={() => setWordWrap(wordWrap === "on" ? "off" : "on")}
             title={`Toggle word wrap (currently ${wordWrap})`}
-            className={`p-1.5 rounded hover:bg-surface text-xs transition-colors ${
+            className={`hidden md:flex p-1.5 rounded hover:bg-surface text-xs transition-colors ${
               wordWrap === "on" ? "text-accent bg-accent/10" : "text-muted"
             }`}
           >
@@ -412,12 +438,71 @@ export default function CodeEditor({
           <button
             onClick={() => setMinimap(!minimap)}
             title={`Toggle minimap (currently ${minimap ? "on" : "off"})`}
-            className={`p-1.5 rounded hover:bg-surface text-xs transition-colors ${
+            className={`hidden lg:flex p-1.5 rounded hover:bg-surface text-xs transition-colors ${
               minimap ? "text-accent bg-accent/10" : "text-muted"
             }`}
           >
             <Map className="h-3.5 w-3.5" />
           </button>
+
+          {/* Terminal / Output Toggle */}
+          <button
+            onClick={() => setIsTerminalCollapsed(!isTerminalCollapsed)}
+            title={isTerminalCollapsed ? "Open Terminal / Output" : "Collapse Terminal / Output"}
+            className={`p-1.5 rounded hover:bg-surface text-xs transition-colors ${
+              !isTerminalCollapsed ? "text-accent bg-accent/10" : "text-muted"
+            }`}
+          >
+            <Terminal className="h-3.5 w-3.5" />
+          </button>
+
+          {/* Run Code Button - Always visible, high contrast, never hidden */}
+          <button
+            onClick={() => {
+              setIsTerminalCollapsed(false);
+              setRunTrigger((prev) => prev + 1);
+            }}
+            title="Run Code (Ctrl + Enter)"
+            className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-white font-semibold text-xs transition-colors shadow-sm shrink-0"
+          >
+            <Play className="h-3.5 w-3.5 fill-current" />
+            <span className="font-semibold text-xs">Run</span>
+            <kbd className="hidden xl:inline px-1 py-0.2 rounded bg-emerald-700/60 text-[9px] text-emerald-100 font-mono">
+              ^Enter
+            </kbd>
+          </button>
+
+          {/* Left / Right Panel Shift Toggles (Desktop only) */}
+          {(onToggleLeftPanel || onToggleRightPanel) && (
+            <div className="hidden md:flex items-center gap-1 pl-1 border-l border-border/80 ml-0.5">
+              {onToggleLeftPanel && (
+                <button
+                  onClick={onToggleLeftPanel}
+                  title={leftPanelOpen ? "Collapse File Explorer" : "Expand File Explorer"}
+                  className="p-1.5 rounded-lg bg-surface/80 hover:bg-surface border border-border text-muted hover:text-foreground transition-colors shadow-sm"
+                >
+                  {leftPanelOpen ? (
+                    <PanelLeftClose className="h-3.5 w-3.5" />
+                  ) : (
+                    <PanelLeftOpen className="h-3.5 w-3.5" />
+                  )}
+                </button>
+              )}
+              {onToggleRightPanel && (
+                <button
+                  onClick={onToggleRightPanel}
+                  title={rightPanelOpen ? "Collapse Chat Panel" : "Expand Chat Panel"}
+                  className="p-1.5 rounded-lg bg-surface/80 hover:bg-surface border border-border text-muted hover:text-foreground transition-colors shadow-sm"
+                >
+                  {rightPanelOpen ? (
+                    <PanelRightClose className="h-3.5 w-3.5" />
+                  ) : (
+                    <PanelRightOpen className="h-3.5 w-3.5" />
+                  )}
+                </button>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
@@ -455,6 +540,24 @@ export default function CodeEditor({
           </div>
         )}
       </div>
+
+      {/* Compiler / Output Terminal Panel */}
+      <CompilerPanel
+        activeFileName={activeFile?.name}
+        activeFileLanguage={activeFile ? getLanguageFromFilename(activeFile.name) : undefined}
+        getCode={() => editorRef.current?.getValue() || ""}
+        onInsertCode={(snippet) => {
+          if (editorRef.current) {
+            editorRef.current.setValue(snippet);
+          }
+        }}
+        onBroadcastRun={onBroadcastRun}
+        currentUser={currentUser}
+        roomId={roomId}
+        isCollapsed={isTerminalCollapsed}
+        onToggleCollapse={() => setIsTerminalCollapsed(!isTerminalCollapsed)}
+        runTrigger={runTrigger}
+      />
     </div>
   );
 }

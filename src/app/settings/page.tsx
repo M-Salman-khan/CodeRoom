@@ -39,9 +39,21 @@ export default function SettingsPage() {
   const [theme, setTheme] = useState("vs-dark");
   const [editorSaved, setEditorSaved] = useState(false);
 
+  const getAuthHeaders = () => {
+    const token =
+      typeof window !== "undefined"
+        ? sessionStorage.getItem("coderoom_token") || localStorage.getItem("coderoom_token") || ""
+        : "";
+    const headers: Record<string, string> = {};
+    if (token) {
+      headers["Authorization"] = `Bearer ${token}`;
+    }
+    return headers;
+  };
+
   useEffect(() => {
     // Load current user
-    fetch("/api/user")
+    fetch("/api/user", { headers: getAuthHeaders() })
       .then((res) => {
         if (!res.ok) {
           router.push("/login");
@@ -95,7 +107,7 @@ export default function SettingsPage() {
     try {
       const res = await fetch("/api/user", {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...getAuthHeaders() },
         body: JSON.stringify({ currentPassword, newPassword }),
       });
 

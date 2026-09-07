@@ -12,10 +12,6 @@ import {
   FileCode,
   MessageSquare,
   FolderTree,
-  PanelLeftClose,
-  PanelLeftOpen,
-  PanelRightClose,
-  PanelRightOpen,
 } from "lucide-react";
 import RoomHeader, { ConnectionStatus } from "@/components/room/RoomHeader";
 import FileExplorer, { FileItem } from "@/components/room/FileExplorer";
@@ -73,6 +69,12 @@ export default function RoomPage() {
   // Modals state
   const [isShareOpen, setIsShareOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [runNotification, setRunNotification] = useState<{
+    username: string;
+    filename: string;
+    status: string;
+    executionTimeMs?: number;
+  } | null>(null);
 
   // Responsive / Layout panels state
   const [leftPanelOpen, setLeftPanelOpen] = useState(true);
@@ -296,6 +298,20 @@ export default function RoomPage() {
             case "room:update":
               if (updatedRoom) {
                 setRoom((prev) => (prev ? { ...prev, ...updatedRoom } : prev));
+              }
+              break;
+
+            case "code:run":
+              if (data.user && data.filename) {
+                setRunNotification({
+                  username: data.user.username,
+                  filename: data.filename,
+                  status: data.result?.status,
+                  executionTimeMs: data.result?.executionTimeMs,
+                });
+                setTimeout(() => {
+                  setRunNotification(null);
+                }, 6000);
               }
               break;
 
@@ -650,32 +666,6 @@ export default function RoomPage() {
             flex-1 h-full flex-col min-w-0 bg-panel relative overflow-hidden
           `}
         >
-          {/* Panel Toggle buttons on desktop */}
-          <div className="hidden md:flex absolute top-2 right-2 z-20 items-center gap-1">
-            <button
-              onClick={() => setLeftPanelOpen(!leftPanelOpen)}
-              title={leftPanelOpen ? "Collapse File Explorer" : "Expand File Explorer"}
-              className="p-1.5 rounded-lg bg-surface/80 hover:bg-surface border border-border text-muted hover:text-foreground transition-colors shadow-sm"
-            >
-              {leftPanelOpen ? (
-                <PanelLeftClose className="h-3.5 w-3.5" />
-              ) : (
-                <PanelLeftOpen className="h-3.5 w-3.5" />
-              )}
-            </button>
-            <button
-              onClick={() => setRightPanelOpen(!rightPanelOpen)}
-              title={rightPanelOpen ? "Collapse Chat Panel" : "Expand Chat Panel"}
-              className="p-1.5 rounded-lg bg-surface/80 hover:bg-surface border border-border text-muted hover:text-foreground transition-colors shadow-sm"
-            >
-              {rightPanelOpen ? (
-                <PanelRightClose className="h-3.5 w-3.5" />
-              ) : (
-                <PanelRightOpen className="h-3.5 w-3.5" />
-              )}
-            </button>
-          </div>
-
           {room && user && (
             <CodeEditor
               roomId={room.id}
@@ -688,6 +678,13 @@ export default function RoomPage() {
               onCloseTab={handleCloseTab}
               onCursorChange={(line, column) => setCursorPos({ line, column })}
               onSaveStatusChange={(status) => setSaveStatus(status)}
+              onBroadcastRun={(runData) => {
+                sendWsEvent("code:run", runData);
+              }}
+              leftPanelOpen={leftPanelOpen}
+              rightPanelOpen={rightPanelOpen}
+              onToggleLeftPanel={() => setLeftPanelOpen(!leftPanelOpen)}
+              onToggleRightPanel={() => setRightPanelOpen(!rightPanelOpen)}
             />
           )}
         </div>
@@ -741,6 +738,45 @@ export default function RoomPage() {
           isOwner={isOwner}
           onUpdated={() => fetchRoomData()}
         />
+      )}
+
+      {/* Real-time Code Execution Toast Notification */}
+      {runNotification && (
+        <div className="fixed bottom-10 right-6 z-50 flex items-center gap-3 px-4 py-3 rounded-xl bg-surface/95 backdrop-blur border border-border shadow-2xl animate-in fade-in slide-in-from-bottom-3 duration-200">
+          <div
+            className={`h-8 w-8 rounded-lg flex items-center justify-center shrink-0 ${
+              runNotification.status === "success"
+                ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
+                : "bg-rose-500/20 text-rose-400 border border-rose-500/30"
+            }`}
+          >
+            <FileCode className="h-4 w-4" />
+          </div>
+          <div className="text-xs">
+            <div className="font-semibold text-foreground">
+              {runNotification.username} executed{" "}
+              <span className="font-mono text-accent">{runNotification.filename}</span>
+            </div>
+            <div className="text-[11px] text-muted flex items-center gap-1.5 mt-0.5">
+              <span
+                className={`font-semibold ${
+                  runNotification.status === "success" ? "text-emerald-400" : "text-rose-400"
+                }`}
+              >
+                {runNotification.status === "success" ? "Success" : "Failed"}
+              </span>
+              {runNotification.executionTimeMs !== undefined && (
+                <span>• {runNotification.executionTimeMs}ms</span>
+              )}
+            </div>
+          </div>
+          <button
+            onClick={() => setRunNotification(null)}
+            className="ml-2 text-muted hover:text-foreground text-xs p-1"
+          >
+            ✕
+          </button>
+        </div>
       )}
     </div>
   );
