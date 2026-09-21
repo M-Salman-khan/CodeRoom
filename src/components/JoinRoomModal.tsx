@@ -100,20 +100,21 @@ export default function JoinRoomModal({
           )}
 
           <div>
-            <label className="block text-xs font-semibold text-muted uppercase tracking-wider mb-2">
+            <label className="block text-[11px] font-semibold text-muted uppercase tracking-wider mb-2">
               Room Code <span className="text-red-400">*</span>
             </label>
-            <div className="relative">
-              <KeyRound className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted" />
+            <div className="relative group">
+              <KeyRound className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted group-focus-within:text-accent transition-colors pointer-events-none" />
               <input
                 type="text"
+                name="roomCode"
+                suppressHydrationWarning
                 value={roomCode}
                 onChange={(e) => setRoomCode(e.target.value.toUpperCase())}
                 placeholder="e.g. X7K29P"
                 required
-                autoFocus
                 maxLength={10}
-                className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-panel border border-border text-foreground font-mono placeholder:font-sans placeholder:text-muted/60 text-sm focus:outline-none focus:border-accent uppercase tracking-wider transition-colors"
+                className="w-full pl-10 pr-4 py-2.5 rounded-xl input-base text-foreground font-mono placeholder:font-sans placeholder:text-muted text-sm uppercase tracking-wider"
               />
             </div>
             <p className="text-[11px] text-muted mt-1.5">
@@ -123,19 +124,20 @@ export default function JoinRoomModal({
 
           {needsPassword && (
             <div className="animate-in fade-in slide-in-from-top-1 duration-200">
-              <label className="block text-xs font-semibold text-muted uppercase tracking-wider mb-2">
+              <label className="block text-[11px] font-semibold text-muted uppercase tracking-wider mb-2">
                 Room Password <span className="text-red-400">*</span>
               </label>
-              <div className="relative">
-                <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted" />
+              <div className="relative group">
+                <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted group-focus-within:text-accent transition-colors pointer-events-none" />
                 <input
                   type="password"
+                  name="password"
+                  suppressHydrationWarning
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="Enter room password"
                   required
-                  autoFocus
-                  className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-panel border border-border text-foreground placeholder:text-muted/60 text-sm focus:outline-none focus:border-accent transition-colors"
+                  className="w-full pl-10 pr-4 py-2.5 rounded-xl input-base text-sm placeholder:text-muted"
                 />
               </div>
             </div>

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import { getLanguageFromFilename } from "@/lib/utils";
+import { canUserEdit } from "@/lib/permissions";
 
 export async function GET(
   _req: Request,
@@ -51,6 +52,14 @@ export async function PATCH(
 
     if (!existing) {
       return NextResponse.json({ error: "File not found" }, { status: 404 });
+    }
+
+    const hasPermission = await canUserEdit(user.id, existing.roomId, fileId);
+    if (!hasPermission) {
+      return NextResponse.json(
+        { error: "You do not have permission to edit this file." },
+        { status: 403 }
+      );
     }
 
     const body = await req.json();
@@ -167,6 +176,14 @@ export async function DELETE(
 
     if (!existing) {
       return NextResponse.json({ error: "File not found" }, { status: 404 });
+    }
+
+    const hasPermission = await canUserEdit(user.id, existing.roomId, fileId);
+    if (!hasPermission) {
+      return NextResponse.json(
+        { error: "You do not have permission to delete this file." },
+        { status: 403 }
+      );
     }
 
     await db.file.delete({

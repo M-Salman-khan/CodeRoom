@@ -17,6 +17,7 @@ model User {
   ownedRooms   Room[]       @relation("RoomOwner")
   memberships  RoomMember[]
   messages     Message[]
+  permissionRequests PermissionRequest[]
 
   @@index([username])
 }
@@ -36,20 +37,23 @@ model Room {
   members      RoomMember[]
   files        File[]
   messages     Message[]
+  permissionRequests PermissionRequest[]
 
   @@index([roomCode])
   @@index([ownerId])
 }
 
 model RoomMember {
-  id       String   @id @default(cuid())
-  roomId   String
-  userId   String
-  role     String   @default("MEMBER") // "OWNER" | "MEMBER"
-  joinedAt DateTime @default(now())
+  id           String   @id @default(cuid())
+  roomId       String
+  userId       String
+  role         String   @default("MEMBER") // "OWNER" | "MEMBER" | "EDITOR"
+  canEdit      Boolean  @default(false)
+  allowedFiles String   @default("[]") // JSON string array of fileIds allowed to edit
+  joinedAt     DateTime @default(now())
 
-  room     Room     @relation(fields: [roomId], references: [id], onDelete: Cascade)
-  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  room         Room     @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([roomId, userId])
   @@index([roomId])
@@ -70,6 +74,7 @@ model File {
   room      Room     @relation(fields: [roomId], references: [id], onDelete: Cascade)
   parent    File?    @relation("FolderHierarchy", fields: [parentId], references: [id], onDelete: Cascade)
   children  File[]   @relation("FolderHierarchy")
+  permissionRequests PermissionRequest[]
 
   @@index([roomId])
   @@index([parentId])
@@ -88,3 +93,22 @@ model Message {
   @@index([roomId, createdAt])
   @@index([userId])
 }
+
+model PermissionRequest {
+  id        String   @id @default(cuid())
+  roomId    String
+  userId    String
+  fileId    String?
+  status    String   @default("PENDING") // "PENDING" | "APPROVED" | "DECLINED"
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  room      Room     @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  file      File?    @relation(fields: [fileId], references: [id], onDelete: Cascade)
+
+  @@index([roomId, status])
+  @@index([userId])
+  @@index([fileId])
+}
+

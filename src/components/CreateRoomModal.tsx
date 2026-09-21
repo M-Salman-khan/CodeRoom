@@ -99,54 +99,55 @@ export default function CreateRoomModal({ isOpen, onClose, onSuccess }: CreateRo
           )}
 
           <div>
-            <label className="block text-xs font-semibold text-muted uppercase tracking-wider mb-2">
+            <label className="block text-[11px] font-semibold text-muted uppercase tracking-wider mb-2">
               Room Name <span className="text-red-400">*</span>
             </label>
             <input
               type="text"
+              name="roomName"
+              suppressHydrationWarning
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="e.g. My Next.js Project"
               required
-              autoFocus
-              className="w-full px-3.5 py-2.5 rounded-xl bg-panel border border-border text-foreground placeholder:text-muted/60 text-sm focus:outline-none focus:border-accent transition-colors"
+              className="w-full px-4 py-2.5 rounded-xl input-base text-sm"
             />
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-muted uppercase tracking-wider mb-2">
-              Description (Optional)
+            <label className="block text-[11px] font-semibold text-muted uppercase tracking-wider mb-2">
+              Description <span className="text-muted/60 font-normal lowercase">(optional)</span>
             </label>
             <input
               type="text"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               placeholder="Brief summary of what you are building..."
-              className="w-full px-3.5 py-2.5 rounded-xl bg-panel border border-border text-foreground placeholder:text-muted/60 text-sm focus:outline-none focus:border-accent transition-colors"
+              className="w-full px-4 py-2.5 rounded-xl input-base text-sm"
             />
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-muted uppercase tracking-wider mb-2">
-              Room Password (Optional)
+            <label className="block text-[11px] font-semibold text-muted uppercase tracking-wider mb-2">
+              Room Password <span className="text-muted/60 font-normal lowercase">(optional)</span>
             </label>
-            <div className="relative">
-              <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted" />
+            <div className="relative group">
+              <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted group-focus-within:text-accent transition-colors pointer-events-none" />
               <input
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="Leave blank for no password"
-                className="w-full pl-10 pr-3.5 py-2.5 rounded-xl bg-panel border border-border text-foreground placeholder:text-muted/60 text-sm focus:outline-none focus:border-accent transition-colors"
+                placeholder="Leave blank for open access"
+                className="w-full pl-10 pr-4 py-2.5 rounded-xl input-base text-sm"
               />
             </div>
             <p className="text-[11px] text-muted mt-1.5">
-              If set, guests must enter this password to join the room.
+              If set, collaborators must enter this password to join the room.
             </p>
           </div>
 
           <div className="pt-2">
-            <div className="flex items-center justify-between p-3.5 rounded-xl bg-panel border border-border">
+            <div className="flex items-center justify-between p-3.5 rounded-xl bg-panel/80 border border-border transition-colors">
               <div className="flex items-center gap-3">
                 {isPublic ? (
                   <Globe className="h-5 w-5 text-accent" />

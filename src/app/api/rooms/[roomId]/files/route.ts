@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import { getLanguageFromFilename } from "@/lib/utils";
+import { canUserEdit } from "@/lib/permissions";
 
 export async function GET(
   _req: Request,
@@ -61,6 +62,14 @@ export async function POST(
 
     if (!room) {
       return NextResponse.json({ error: "Room not found" }, { status: 404 });
+    }
+
+    const hasPermission = await canUserEdit(user.id, room.id);
+    if (!hasPermission) {
+      return NextResponse.json(
+        { error: "You do not have permission to create files in this room." },
+        { status: 403 }
+      );
     }
 
     const body = await req.json();

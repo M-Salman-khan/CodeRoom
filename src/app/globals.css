@@ -2,45 +2,113 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  --background: #0d1117;
-  --surface: #161b22;
-  --surface-hover: #21262d;
-  --panel: #0f141c;
-  --panel-header: #141a24;
-  --border: #30363d;
-  --foreground: #e6edf3;
-  --muted: #8b949e;
-  --accent: #3b82f6;
-  --accent-hover: #2563eb;
-  --success: #238636;
+/* ==========================================================================
+   CodeRoom Multi-Theme Design System
+   ========================================================================== */
+
+/* 1. Default Dark (Obsidian Indigo) */
+:root,
+.dark {
+  --background: #090d16;
+  --surface: #0f1626;
+  --surface-hover: #162035;
+  --panel: #0b111e;
+  --panel-header: #101828;
+  --border: #1e293b;
+  --foreground: #f8fafc;
+  --muted: #94a3b8;
+  --accent: #6366f1;
+  --accent-hover: #4f46e5;
+  --success: #10b981;
+  --card-bg: rgba(15, 22, 38, 0.75);
+  --input-bg: rgba(11, 17, 30, 0.85);
+  --input-border: rgba(255, 255, 255, 0.1);
+  --card-border: rgba(255, 255, 255, 0.08);
+  --glow-color: rgba(99, 102, 241, 0.25);
+  --scrollbar-thumb: #1e293b;
+  --scrollbar-thumb-hover: #334155;
 }
 
+/* 2. Light Theme (Daylight Clean) */
 .light {
-  --background: #ffffff;
-  --surface: #f6f8fa;
-  --surface-hover: #eaeef2;
-  --panel: #f6f8fa;
-  --panel-header: #ebeef2;
-  --border: #d0d7de;
-  --foreground: #1f2328;
-  --muted: #656d76;
-  --accent: #0969da;
-  --accent-hover: #085cc0;
-  --success: #1a7f37;
+  --background: #f8fafc;
+  --surface: #ffffff;
+  --surface-hover: #f1f5f9;
+  --panel: #f8fafc;
+  --panel-header: #f1f5f9;
+  --border: #e2e8f0;
+  --foreground: #0f172a;
+  --muted: #64748b;
+  --accent: #4f46e5;
+  --accent-hover: #4338ca;
+  --success: #059669;
+  --card-bg: rgba(255, 255, 255, 0.9);
+  --input-bg: #ffffff;
+  --input-border: #cbd5e1;
+  --card-border: rgba(226, 232, 240, 0.9);
+  --glow-color: rgba(79, 70, 229, 0.15);
+  --scrollbar-thumb: #cbd5e1;
+  --scrollbar-thumb-hover: #94a3b8;
+}
+
+/* 3. Cyberpunk Neon (Midnight Violet & Cyan) */
+.theme-cyber {
+  --background: #060714;
+  --surface: #0e1026;
+  --surface-hover: #181b3c;
+  --panel: #090a1c;
+  --panel-header: #121431;
+  --border: #26294d;
+  --foreground: #f1f5f9;
+  --muted: #999cb8;
+  --accent: #a855f7;
+  --accent-hover: #9333ea;
+  --success: #06b6d4;
+  --card-bg: rgba(14, 16, 38, 0.8);
+  --input-bg: rgba(9, 10, 28, 0.9);
+  --input-border: rgba(168, 85, 247, 0.2);
+  --card-border: rgba(168, 85, 247, 0.18);
+  --glow-color: rgba(168, 85, 247, 0.35);
+  --scrollbar-thumb: #26294d;
+  --scrollbar-thumb-hover: #3e437c;
+}
+
+/* 4. Forest Emerald (Hacker Terminal) */
+.theme-forest {
+  --background: #06120d;
+  --surface: #0b1e16;
+  --surface-hover: #112d22;
+  --panel: #081610;
+  --panel-header: #0d261c;
+  --border: #1a3c2e;
+  --foreground: #ecfdf5;
+  --muted: #6ee7b7;
+  --accent: #10b981;
+  --accent-hover: #059669;
+  --success: #34d399;
+  --card-bg: rgba(11, 30, 22, 0.8);
+  --input-bg: rgba(8, 22, 16, 0.9);
+  --input-border: rgba(16, 185, 129, 0.25);
+  --card-border: rgba(16, 185, 129, 0.2);
+  --glow-color: rgba(16, 185, 129, 0.3);
+  --scrollbar-thumb: #1a3c2e;
+  --scrollbar-thumb-hover: #295c47;
 }
 
 body {
   color: var(--foreground);
   background: var(--background);
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Geist", Helvetica, Arial, sans-serif;
   overflow-x: hidden;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  transition: background-color 0.2s ease, color 0.2s ease;
 }
 
-/* Custom developer scrollbars */
+/* Custom modern scrollbars across all themes */
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 6px;
+  height: 6px;
 }
 
 ::-webkit-scrollbar-track {
@@ -48,12 +116,89 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #30363d;
-  border-radius: 4px;
+  background: var(--scrollbar-thumb);
+  border-radius: 9999px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #484f58;
+  background: var(--scrollbar-thumb-hover);
+}
+
+/* Subtle background grid & dot patterns */
+.bg-grid-pattern {
+  background-size: 32px 32px;
+  background-image: 
+    linear-gradient(to right, rgba(128, 128, 128, 0.05) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(128, 128, 128, 0.05) 1px, transparent 1px);
+}
+
+.bg-dots-pattern {
+  background-size: 24px 24px;
+  background-image: radial-gradient(rgba(128, 128, 128, 0.12) 1px, transparent 1px);
+}
+
+/* Glassmorphic card surface with dynamic theme support */
+.glass-card {
+  background: var(--card-bg);
+  backdrop-filter: blur(16px);
+  border: 1px solid var(--card-border);
+  box-shadow: 
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.05),
+    0 10px 25px -5px rgba(0, 0, 0, 0.25);
+}
+
+.glass-card-hover {
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.glass-card-hover:hover {
+  border-color: var(--accent);
+  box-shadow: 
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.1),
+    0 16px 36px -6px var(--glow-color);
+  transform: translateY(-2px);
+}
+
+/* Radiant glow effects */
+.glow-accent {
+  box-shadow: 0 0 35px -5px var(--glow-color);
+}
+
+.glow-emerald {
+  box-shadow: 0 0 30px -5px rgba(16, 185, 129, 0.35);
+}
+
+/* High-end developer input styling */
+.input-base {
+  background-color: var(--input-bg);
+  border: 1px solid var(--input-border);
+  color: var(--foreground);
+  border-radius: 0.75rem;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+.input-base::placeholder {
+  color: var(--muted);
+  opacity: 0.6;
+}
+
+.input-base:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+
+.input-base:focus,
+.input-base:focus-within {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 
+    0 0 0 3px var(--glow-color),
+    0 0 20px -3px var(--glow-color),
+    inset 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+.input-base:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 /* Yjs Monaco Remote Cursor and Selection Styles */
@@ -77,13 +222,13 @@ body {
   font-weight: 600;
   line-height: normal;
   padding: 1px 5px;
-  border-radius: 3px;
+  border-radius: 4px;
   color: #ffffff;
   white-space: nowrap;
   pointer-events: none;
-  opacity: 0.9;
+  opacity: 0.95;
   z-index: 20;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5);
 }
 
 @layer utilities {

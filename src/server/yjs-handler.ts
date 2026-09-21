@@ -6,6 +6,7 @@ import * as encoding from "lib0/encoding";
 import * as decoding from "lib0/decoding";
 import { db } from "../lib/db";
 import { SessionUser } from "../lib/auth";
+import { canUserEdit } from "../lib/permissions";
 
 const MESSAGE_SYNC = 0;
 const MESSAGE_AWARENESS = 1;
@@ -143,7 +144,7 @@ function sendBinary(conn: WebSocket, message: Uint8Array) {
 export async function handleYjsConnection(
   ws: WebSocket,
   docName: string,
-  _user: SessionUser
+  user: SessionUser
 ) {
   ws.binaryType = "nodebuffer";
 
@@ -190,7 +191,7 @@ export async function handleYjsConnection(
   }
 
   // Handle incoming messages
-  const handleMessage = (data: ArrayBuffer | Buffer) => {
+  const handleMessage = async (data: ArrayBuffer | Buffer) => {
     try {
       const buffer = Buffer.isBuffer(data) ? data : Buffer.from(data);
       const decoder = decoding.createDecoder(new Uint8Array(buffer));
@@ -198,6 +199,14 @@ export async function handleYjsConnection(
 
       switch (messageType) {
         case MESSAGE_SYNC: {
+          const syncMessageType = decoding.peekVarUint(decoder);
+          if (syncMessageType === syncProtocol.messageYjsUpdate) {
+            const allowed = await canUserEdit(user.id, managed.roomId, managed.fileId);
+            if (!allowed) {
+              // Client is in read-only mode, ignore unpermitted edit
+              break;
+            }
+          }
           const encoder = encoding.createEncoder();
           encoding.writeVarUint(encoder, MESSAGE_SYNC);
           syncProtocol.readSyncMessage(decoder, encoder, managed.doc, ws);

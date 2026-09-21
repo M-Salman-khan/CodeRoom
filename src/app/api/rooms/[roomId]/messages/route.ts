@@ -122,3 +122,38 @@ export async function POST(
     );
   }
 }
+
+export async function DELETE(
+  req: Request,
+  { params }: { params: { roomId: string } }
+) {
+  const user = await getCurrentUser();
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const { roomId } = params;
+
+  try {
+    const room = await db.room.findFirst({
+      where: { OR: [{ id: roomId }, { roomCode: roomId }] },
+      select: { id: true },
+    });
+
+    if (!room) {
+      return NextResponse.json({ error: "Room not found" }, { status: 404 });
+    }
+
+    await db.message.deleteMany({
+      where: { roomId: room.id },
+    });
+
+    return NextResponse.json({ success: true, message: "Chat cleared successfully" });
+  } catch (err) {
+    console.error("Clear messages error:", err);
+    return NextResponse.json(
+      { error: "Failed to clear messages" },
+      { status: 500 }
+    );
+  }
+}

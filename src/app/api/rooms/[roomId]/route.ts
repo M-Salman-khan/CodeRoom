@@ -30,6 +30,14 @@ export async function GET(
             },
           },
         },
+        permissionRequests: {
+          where: { status: "PENDING" },
+          include: {
+            user: { select: { id: true, username: true } },
+            file: { select: { id: true, name: true } },
+          },
+          orderBy: { createdAt: "desc" },
+        },
       },
     });
 
@@ -60,14 +68,30 @@ export async function GET(
 
     // If public or user has access but not yet member, automatically add as member
     if (!isMember && !isOwner && (!room.passwordHash || room.isPublic)) {
-      await db.roomMember.create({
+      const newMember = await db.roomMember.create({
         data: {
           roomId: room.id,
           userId: user.id,
           role: "MEMBER",
+          canEdit: false,
+          allowedFiles: "[]",
+        },
+        include: {
+          user: { select: { id: true, username: true } },
         },
       });
+      room.members.push(newMember);
     }
+
+    const currentMember = room.members.find((m) => m.userId === user.id);
+    let myAllowedFiles: string[] = [];
+    try {
+      myAllowedFiles = isOwner ? ["*"] : JSON.parse(currentMember?.allowedFiles || "[]");
+    } catch {
+      myAllowedFiles = [];
+    }
+
+    const canEdit = isOwner || Boolean(currentMember?.canEdit);
 
     return NextResponse.json({
       room: {
@@ -79,18 +103,47 @@ export async function GET(
         hasPassword: Boolean(room.passwordHash),
         ownerId: room.ownerId,
         owner: room.owner,
-        members: room.members.map((m) => ({
-          id: m.id,
-          userId: m.userId,
-          username: m.user.username,
-          role: m.role,
-          joinedAt: m.joinedAt,
-        })),
+        members: room.members.map((m) => {
+          let allowed: string[] = [];
+          try {
+            allowed = JSON.parse(m.allowedFiles || "[]");
+          } catch {}
+          return {
+            id: m.id,
+            userId: m.userId,
+            username: m.user.username,
+            role: m.role,
+            canEdit: m.role === "OWNER" || m.canEdit,
+            allowedFiles: allowed,
+            joinedAt: m.joinedAt,
+          };
+        }),
+        pendingRequests: isOwner
+          ? room.permissionRequests.map((r) => ({
+              id: r.id,
+              userId: r.userId,
+              username: r.user.username,
+              fileId: r.fileId,
+              fileName: r.file?.name || null,
+              createdAt: r.createdAt,
+            }))
+          : [],
         createdAt: room.createdAt,
         updatedAt: room.updatedAt,
       },
       isOwner,
-      userRole: isOwner ? "OWNER" : "MEMBER",
+      userRole: isOwner ? "OWNER" : (currentMember?.canEdit ? "EDITOR" : "MEMBER"),
+      canEdit,
+      allowedFiles: myAllowedFiles,
+      myPendingRequests: room.permissionRequests
+        .filter((r) => r.userId === user.id)
+        .map((r) => ({
+          id: r.id,
+          fileId: r.fileId,
+          fileName: r.file?.name || null,
+          status: r.status,
+          createdAt: r.createdAt,
+        })),
     });
   } catch (err) {
     console.error("Fetch room error:", err);

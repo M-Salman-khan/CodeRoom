@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback, Suspense } from "react";
+import { useEffect, useState, useCallback, Suspense, useMemo } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
@@ -20,9 +20,11 @@ import {
   Check,
   Search,
   Loader2,
+  Share2,
 } from "lucide-react";
 import CreateRoomModal from "@/components/CreateRoomModal";
 import JoinRoomModal from "@/components/JoinRoomModal";
+import ThemeToggle from "@/components/ThemeToggle";
 
 interface RoomItem {
   id: string;
@@ -48,8 +50,11 @@ function DashboardContent() {
   const [user, setUser] = useState<{ id: string; username: string } | null>(null);
   const [rooms, setRooms] = useState<RoomItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [mounted, setMounted] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [activeTabFilter, setActiveTabFilter] = useState<"all" | "public" | "private" | "mine">("all");
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
+  const [copiedLink, setCopiedLink] = useState<string | null>(null);
 
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isJoinOpen, setIsJoinOpen] = useState(false);
@@ -64,6 +69,10 @@ function DashboardContent() {
       headers["Authorization"] = `Bearer ${token}`;
     }
     return headers;
+  }, []);
+
+  useEffect(() => {
+    setMounted(true);
   }, []);
 
   const fetchRooms = useCallback(async () => {
@@ -134,12 +143,40 @@ function DashboardContent() {
     setTimeout(() => setCopiedCode(null), 2000);
   };
 
-  const filteredRooms = rooms.filter(
-    (room) =>
-      room.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      room.roomCode.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (room.description && room.description.toLowerCase().includes(searchQuery.toLowerCase()))
-  );
+  const copyInviteLink = (e: React.MouseEvent, code: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const url = `${window.location.origin}/room/${code}`;
+    navigator.clipboard.writeText(url);
+    setCopiedLink(code);
+    setTimeout(() => setCopiedLink(null), 2000);
+  };
+
+  const counts = useMemo(() => {
+    const total = rooms.length;
+    const pub = rooms.filter((r) => r.isPublic).length;
+    const priv = rooms.filter((r) => !r.isPublic).length;
+    const mine = rooms.filter((r) => r.ownerId === user?.id).length;
+    return { total, pub, priv, mine };
+  }, [rooms, user]);
+
+  const filteredRooms = useMemo(() => {
+    return rooms.filter((room) => {
+      // Tab filter
+      if (activeTabFilter === "public" && !room.isPublic) return false;
+      if (activeTabFilter === "private" && room.isPublic) return false;
+      if (activeTabFilter === "mine" && room.ownerId !== user?.id) return false;
+
+      // Query filter
+      if (!searchQuery.trim()) return true;
+      const q = searchQuery.toLowerCase();
+      return (
+        room.name.toLowerCase().includes(q) ||
+        room.roomCode.toLowerCase().includes(q) ||
+        (room.description && room.description.toLowerCase().includes(q))
+      );
+    });
+  }, [rooms, activeTabFilter, searchQuery, user]);
 
   const formatDate = (dateStr: string) => {
     try {
@@ -169,7 +206,7 @@ function DashboardContent() {
     }
   };
 
-  if (loading) {
+  if (!mounted || loading) {
     return (
       <div className="min-h-screen bg-background flex flex-col items-center justify-center gap-3">
         <Loader2 className="h-8 w-8 animate-spin text-accent" />
@@ -184,12 +221,12 @@ function DashboardContent() {
       <aside className="w-full md:w-64 border-b md:border-b-0 md:border-r border-border bg-surface flex flex-col justify-between shrink-0">
         <div>
           {/* Logo */}
-          <div className="h-16 px-6 border-b border-border flex items-center justify-between">
+          <div className="h-16 px-6 border-b border-border/80 flex items-center justify-between">
             <Link href="/dashboard" className="flex items-center gap-2.5 group">
-              <div className="h-8 w-8 rounded-lg bg-accent/15 border border-accent/30 flex items-center justify-center text-accent group-hover:scale-105 transition-transform">
+              <div className="h-9 w-9 rounded-xl bg-accent text-white flex items-center justify-center shadow-md shadow-accent/20 group-hover:scale-105 transition-transform">
                 <Code2 className="h-5 w-5" />
               </div>
-              <span className="font-bold text-lg tracking-tight">
+              <span className="font-bold text-lg tracking-tight text-foreground">
                 Code<span className="text-accent">Room</span>
               </span>
             </Link>
@@ -199,7 +236,7 @@ function DashboardContent() {
           <nav className="p-4 space-y-1.5">
             <Link
               href="/dashboard"
-              className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium bg-panel border border-border text-foreground transition-colors"
+              className="flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-semibold bg-accent/15 border border-accent/30 text-accent transition-colors shadow-sm"
             >
               <LayoutDashboard className="h-4 w-4 text-accent" />
               <span>Dashboard</span>
@@ -207,17 +244,17 @@ function DashboardContent() {
 
             <button
               onClick={() => setIsCreateOpen(true)}
-              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-muted hover:text-foreground hover:bg-surface-hover transition-colors text-left"
+              className="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium text-muted hover:text-foreground hover:bg-surface-hover transition-colors text-left"
             >
-              <Plus className="h-4 w-4 text-emerald-400" />
+              <Plus className="h-4 w-4 text-emerald-500" />
               <span>Create Room</span>
             </button>
 
             <button
               onClick={() => setIsJoinOpen(true)}
-              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-muted hover:text-foreground hover:bg-surface-hover transition-colors text-left"
+              className="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium text-muted hover:text-foreground hover:bg-surface-hover transition-colors text-left"
             >
-              <LogIn className="h-4 w-4 text-blue-400" />
+              <LogIn className="h-4 w-4 text-accent" />
               <span>Join Room</span>
             </button>
 
@@ -225,21 +262,26 @@ function DashboardContent() {
               href="/settings"
               className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-muted hover:text-foreground hover:bg-surface-hover transition-colors"
             >
-              <Settings className="h-4 w-4 text-purple-400" />
+              <Settings className="h-4 w-4 text-muted" />
               <span>Settings</span>
             </Link>
           </nav>
         </div>
 
-        {/* User profile & Logout */}
-        <div className="p-4 border-t border-border">
+        {/* User profile, Theme Toggle & Logout */}
+        <div className="p-4 border-t border-border space-y-3">
           <div className="flex items-center justify-between">
+            <span className="text-[11px] font-semibold text-muted uppercase tracking-wider">Theme</span>
+            <ThemeToggle compact />
+          </div>
+
+          <div className="pt-2 border-t border-border/70 flex items-center justify-between">
             <div className="flex items-center gap-2.5 min-w-0">
               <div className="h-8 w-8 rounded-full bg-accent/20 border border-accent/30 text-accent font-semibold text-xs flex items-center justify-center shrink-0">
                 {user?.username ? user.username.slice(0, 2).toUpperCase() : "U"}
               </div>
               <div className="min-w-0">
-                <div className="text-xs font-semibold truncate">{user?.username}</div>
+                <div className="text-xs font-semibold truncate text-foreground">{user?.username}</div>
                 <div className="text-[10px] text-muted truncate">Connected</div>
               </div>
             </div>
@@ -247,7 +289,7 @@ function DashboardContent() {
             <button
               onClick={handleLogout}
               title="Log out"
-              className="p-1.5 rounded-lg text-muted hover:text-red-400 hover:bg-panel transition-colors"
+              className="p-1.5 rounded-lg text-muted hover:text-red-400 hover:bg-surface-hover transition-colors"
             >
               <LogOut className="h-4 w-4" />
             </button>
@@ -260,18 +302,22 @@ function DashboardContent() {
         {/* Welcome Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-8 border-b border-border">
           <div>
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-accent/10 border border-accent/20 text-xs font-medium text-accent mb-3">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              <span>Real-time Multi-User IDE</span>
+            </div>
             <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">
               Welcome back, <span className="text-accent">{user?.username}</span>
             </h1>
             <p className="text-sm text-muted mt-1">
-              Manage your collaborative rooms or create a new workspace.
+              Collaborate in real time, run code with single-runner mutex, and manage your team rooms.
             </p>
           </div>
 
           <div className="flex items-center gap-3">
             <button
               onClick={() => setIsJoinOpen(true)}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-border text-foreground hover:bg-surface text-sm font-semibold transition-colors"
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-border text-foreground hover:bg-surface-hover text-sm font-semibold transition-colors"
             >
               <LogIn className="h-4 w-4 text-muted" />
               <span>Join Room</span>
@@ -279,7 +325,7 @@ function DashboardContent() {
 
             <button
               onClick={() => setIsCreateOpen(true)}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-accent hover:bg-accent-hover text-white text-sm font-semibold transition-all shadow-md shadow-accent/20 hover:scale-[1.02]"
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-accent hover:bg-accent-hover text-white text-sm font-semibold transition-all shadow-lg shadow-accent/25 hover:shadow-accent/40 hover:scale-[1.02] active:scale-[0.98]"
             >
               <Plus className="h-4 w-4" />
               <span>Create Room</span>
@@ -287,50 +333,114 @@ function DashboardContent() {
           </div>
         </div>
 
-        {/* My Rooms Section */}
+        {/* Quick Stats Banner */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-6">
+          <div className="glass-card p-4 rounded-2xl">
+            <div className="text-[11px] font-semibold text-muted uppercase tracking-wider">Total Rooms</div>
+            <div className="text-2xl font-bold mt-1 text-foreground">{counts.total}</div>
+          </div>
+          <div className="glass-card p-4 rounded-2xl">
+            <div className="text-[11px] font-semibold text-muted uppercase tracking-wider">Public Rooms</div>
+            <div className="text-2xl font-bold mt-1 text-emerald-400">{counts.pub}</div>
+          </div>
+          <div className="glass-card p-4 rounded-2xl">
+            <div className="text-[11px] font-semibold text-muted uppercase tracking-wider">Private Rooms</div>
+            <div className="text-2xl font-bold mt-1 text-accent">{counts.priv}</div>
+          </div>
+          <div className="glass-card p-4 rounded-2xl">
+            <div className="text-[11px] font-semibold text-muted uppercase tracking-wider">Created by Me</div>
+            <div className="text-2xl font-bold mt-1 text-amber-400">{counts.mine}</div>
+          </div>
+        </div>
+
+        {/* Rooms Section */}
         <div className="mt-8">
+          {/* Filter & Search Bar */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-            <div>
-              <h2 className="text-lg font-semibold tracking-tight">My Rooms</h2>
-              <p className="text-xs text-muted mt-0.5">
-                {rooms.length} {rooms.length === 1 ? "room" : "rooms"} available
-              </p>
+            <div className="flex items-center gap-1.5 p-1 rounded-xl bg-surface border border-border text-xs font-medium overflow-x-auto no-scrollbar">
+              <button
+                onClick={() => setActiveTabFilter("all")}
+                className={`px-3 py-1.5 rounded-lg transition-all ${
+                  activeTabFilter === "all"
+                    ? "bg-accent text-white font-semibold shadow-sm"
+                    : "text-muted hover:text-foreground"
+                }`}
+              >
+                All ({counts.total})
+              </button>
+              <button
+                onClick={() => setActiveTabFilter("public")}
+                className={`px-3 py-1.5 rounded-lg transition-all ${
+                  activeTabFilter === "public"
+                    ? "bg-accent text-white font-semibold shadow-sm"
+                    : "text-muted hover:text-foreground"
+                }`}
+              >
+                Public ({counts.pub})
+              </button>
+              <button
+                onClick={() => setActiveTabFilter("private")}
+                className={`px-3 py-1.5 rounded-lg transition-all ${
+                  activeTabFilter === "private"
+                    ? "bg-accent text-white font-semibold shadow-sm"
+                    : "text-muted hover:text-foreground"
+                }`}
+              >
+                Private ({counts.priv})
+              </button>
+              <button
+                onClick={() => setActiveTabFilter("mine")}
+                className={`px-3 py-1.5 rounded-lg transition-all ${
+                  activeTabFilter === "mine"
+                    ? "bg-accent text-white font-semibold shadow-sm"
+                    : "text-muted hover:text-foreground"
+                }`}
+              >
+                Mine ({counts.mine})
+              </button>
             </div>
 
-            {rooms.length > 0 && (
-              <div className="relative w-full sm:w-64">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted" />
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Search rooms..."
-                  className="w-full pl-9 pr-3.5 py-1.5 rounded-xl bg-surface border border-border text-foreground placeholder:text-muted/60 text-xs focus:outline-none focus:border-accent transition-colors"
-                />
-              </div>
-            )}
+            <div className="relative w-full sm:w-72 group">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted group-focus-within:text-accent transition-colors pointer-events-none" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search rooms by name or code..."
+                className="w-full pl-9 pr-3.5 py-2 rounded-xl input-base text-xs"
+              />
+            </div>
           </div>
 
           {filteredRooms.length === 0 ? (
-            <div className="border border-border/80 border-dashed rounded-2xl p-12 text-center bg-surface/30">
-              <div className="h-12 w-12 rounded-2xl bg-surface border border-border text-muted flex items-center justify-center mx-auto mb-4">
-                <FolderGit2 className="h-6 w-6" />
+            <div className="border border-border/80 border-dashed rounded-3xl p-12 text-center bg-surface/30">
+              <div className="h-14 w-14 rounded-2xl bg-surface border border-border text-muted flex items-center justify-center mx-auto mb-4 shadow-sm">
+                <FolderGit2 className="h-7 w-7 text-accent" />
               </div>
               <h3 className="text-base font-semibold text-foreground">
-                {searchQuery ? "No matching rooms found" : "No rooms yet"}
+                {searchQuery ? "No matching rooms found" : "No collaborative rooms yet"}
               </h3>
               <p className="text-xs text-muted max-w-sm mx-auto mt-1.5 mb-6">
                 {searchQuery
-                  ? "Try searching for another room name or room code."
-                  : "Create your first collaborative room or join an existing room with an invite code."}
+                  ? "Try searching for another room name, room code, or adjusting your filter."
+                  : "Create your first collaborative room or join an existing session with an invite code."}
               </p>
-              <button
-                onClick={() => setIsCreateOpen(true)}
-                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-accent hover:bg-accent-hover text-white text-xs font-semibold transition-all shadow-sm"
-              >
-                <Plus className="h-4 w-4" />
-                <span>Create your first collaborative room</span>
-              </button>
+              <div className="flex items-center justify-center gap-3">
+                <button
+                  onClick={() => setIsCreateOpen(true)}
+                  className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-accent hover:bg-accent-hover text-white text-xs font-semibold transition-all shadow-sm"
+                >
+                  <Plus className="h-4 w-4" />
+                  <span>Create Room</span>
+                </button>
+                <button
+                  onClick={() => setIsJoinOpen(true)}
+                  className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-border hover:bg-surface text-foreground text-xs font-semibold transition-all"
+                >
+                  <LogIn className="h-4 w-4" />
+                  <span>Join with Code</span>
+                </button>
+              </div>
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
@@ -339,51 +449,72 @@ function DashboardContent() {
                 return (
                   <div
                     key={room.id}
-                    className="flex flex-col justify-between p-5 rounded-2xl bg-surface border border-border/80 hover:border-accent/40 transition-all hover:shadow-lg hover:shadow-black/20 group"
+                    className="glass-card glass-card-hover flex flex-col justify-between p-5 rounded-2xl transition-all group relative overflow-hidden"
                   >
                     <div>
                       {/* Top Bar with privacy and code */}
                       <div className="flex items-center justify-between gap-2 mb-3">
                         <div className="flex items-center gap-1.5">
-                          {room.passwordHash ? (
-                            <span className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-md bg-amber-500/10 text-amber-400 border border-amber-500/20">
-                              <Lock className="h-3 w-3" />
-                              Protected
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                          {room.isPublic ? (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-md bg-emerald-500/15 text-emerald-400 border border-emerald-500/25">
                               <Globe className="h-3 w-3" />
                               Public
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-md bg-accent/15 text-accent border border-accent/25">
+                              <Lock className="h-3 w-3" />
+                              Private
+                            </span>
+                          )}
+
+                          {room.passwordHash && (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-md bg-amber-500/15 text-amber-400 border border-amber-500/25">
+                              <Lock className="h-3 w-3" />
+                              Protected
                             </span>
                           )}
 
                           {isOwner && (
-                            <span className="text-[10px] font-medium px-2 py-0.5 rounded-md bg-accent/10 text-accent border border-accent/20">
+                            <span className="text-[10px] font-semibold px-2 py-0.5 rounded-md bg-accent/20 text-accent border border-accent/30">
                               Owner
                             </span>
                           )}
                         </div>
 
-                        {/* Room Code Badge */}
-                        <button
-                          onClick={(e) => copyRoomCode(e, room.roomCode)}
-                          title="Copy room code"
-                          className="flex items-center gap-1 text-[11px] font-mono px-2 py-0.5 rounded-md bg-panel border border-border text-muted hover:text-foreground transition-colors"
-                        >
-                          <span>{room.roomCode}</span>
-                          {copiedCode === room.roomCode ? (
-                            <Check className="h-3 w-3 text-green-400" />
-                          ) : (
-                            <Copy className="h-3 w-3" />
-                          )}
-                        </button>
+                        {/* Room Code Badge with Copy */}
+                        <div className="flex items-center gap-1">
+                          <button
+                            onClick={(e) => copyInviteLink(e, room.roomCode)}
+                            title="Copy invite link"
+                            className="p-1.5 rounded-md bg-panel/80 border border-border/80 text-muted hover:text-foreground hover:border-accent transition-colors"
+                          >
+                            {copiedLink === room.roomCode ? (
+                              <Check className="h-3 w-3 text-emerald-400" />
+                            ) : (
+                              <Share2 className="h-3 w-3" />
+                            )}
+                          </button>
+
+                          <button
+                            onClick={(e) => copyRoomCode(e, room.roomCode)}
+                            title="Copy room code"
+                            className="flex items-center gap-1 text-[11px] font-mono px-2 py-1 rounded-md bg-panel/80 border border-border/80 text-muted hover:text-foreground hover:border-accent transition-colors"
+                          >
+                            <span>{room.roomCode}</span>
+                            {copiedCode === room.roomCode ? (
+                              <Check className="h-3 w-3 text-emerald-400" />
+                            ) : (
+                              <Copy className="h-3 w-3" />
+                            )}
+                          </button>
+                        </div>
                       </div>
 
                       {/* Room Name & Description */}
                       <h3 className="font-semibold text-base text-foreground group-hover:text-accent transition-colors line-clamp-1">
                         {room.name}
                       </h3>
-                      <p className="text-xs text-muted mt-1 line-clamp-2 min-h-[32px]">
+                      <p className="text-xs text-muted mt-1.5 line-clamp-2 min-h-[32px] leading-relaxed">
                         {room.description || "No description provided."}
                       </p>
                     </div>
@@ -391,23 +522,23 @@ function DashboardContent() {
                     {/* Metadata & Join */}
                     <div className="mt-5 pt-4 border-t border-border/60">
                       <div className="flex items-center justify-between text-[11px] text-muted mb-4">
-                        <div className="flex items-center gap-1">
-                          <Users className="h-3.5 w-3.5" />
+                        <div className="flex items-center gap-1.5">
+                          <Users className="h-3.5 w-3.5 text-accent" />
                           <span>
                             {room._count?.members || 1}{" "}
                             {room._count?.members === 1 ? "member" : "members"}
                           </span>
                         </div>
 
-                        <div className="flex items-center gap-1" title={`Created: ${formatDate(room.createdAt)}`}>
-                          <Clock className="h-3.5 w-3.5" />
-                          <span>Active {formatRelativeTime(room.updatedAt)}</span>
+                        <div className="flex items-center gap-1.5" title={`Created: ${formatDate(room.createdAt)}`}>
+                          <Clock className="h-3.5 w-3.5 text-muted" />
+                          <span suppressHydrationWarning>Active {formatRelativeTime(room.updatedAt)}</span>
                         </div>
                       </div>
 
                       <Link
                         href={`/room/${room.roomCode}`}
-                        className="w-full flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl bg-panel hover:bg-accent hover:text-white text-xs font-semibold border border-border text-foreground transition-all group-hover:border-accent/40"
+                        className="w-full flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl bg-panel hover:bg-accent hover:text-white text-xs font-semibold border border-border/80 text-foreground transition-all group-hover:border-accent/40 shadow-sm"
                       >
                         <span>Enter Room</span>
                         <ArrowRight className="h-3.5 w-3.5" />

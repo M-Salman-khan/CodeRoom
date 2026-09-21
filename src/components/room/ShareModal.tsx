@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { X, Copy, Check, Share2, Wifi } from "lucide-react";
+import { X, Copy, Check, Share2, Wifi, Link2, Hash } from "lucide-react";
 
 interface ShareModalProps {
   isOpen: boolean;
@@ -66,25 +66,28 @@ export default function ShareModal({
         <div className="p-6 space-y-5">
           {/* Room Code */}
           <div>
-            <label className="block text-xs font-semibold text-muted uppercase tracking-wider mb-2">
+            <label className="block text-[11px] font-semibold text-muted uppercase tracking-wider mb-2">
               Room Code
             </label>
             <div className="flex items-center gap-2">
-              <div className="flex-1 px-4 py-3 rounded-xl bg-panel border border-border font-mono text-center text-xl font-bold tracking-widest text-accent selection:bg-accent/20">
-                {roomCode}
+              <div className="flex-1 relative flex items-center justify-center px-4 py-3 rounded-xl bg-panel border border-border shadow-inner">
+                <Hash className="absolute left-3.5 h-4 w-4 text-accent pointer-events-none" />
+                <span className="font-mono text-center text-xl font-bold tracking-widest text-accent selection:bg-accent/30">
+                  {roomCode}
+                </span>
               </div>
               <button
                 onClick={copyCode}
-                className="px-4 py-3 rounded-xl bg-panel hover:bg-surface-hover border border-border text-foreground text-xs font-semibold flex items-center gap-2 transition-colors shrink-0"
+                className="px-4 py-3 rounded-xl bg-surface hover:bg-surface-hover border border-border text-foreground text-xs font-semibold flex items-center gap-2 transition-colors shrink-0 shadow-sm"
               >
                 {copiedCode ? (
                   <>
-                    <Check className="h-4 w-4 text-green-400" />
-                    <span>Copied</span>
+                    <Check className="h-4 w-4 text-emerald-400" />
+                    <span className="text-emerald-400">Copied</span>
                   </>
                 ) : (
                   <>
-                    <Copy className="h-4 w-4" />
+                    <Copy className="h-4 w-4 text-muted" />
                     <span>Copy Code</span>
                   </>
                 )}
@@ -94,19 +97,23 @@ export default function ShareModal({
 
           {/* Invite Link */}
           <div>
-            <label className="block text-xs font-semibold text-muted uppercase tracking-wider mb-2">
+            <label className="block text-[11px] font-semibold text-muted uppercase tracking-wider mb-2">
               Invite Link
             </label>
             <div className="flex items-center gap-2">
-              <input
-                type="text"
-                readOnly
-                value={inviteUrl}
-                className="flex-1 px-3.5 py-2.5 rounded-xl bg-panel border border-border font-mono text-xs text-muted truncate focus:outline-none select-all"
-              />
+              <div className="relative flex-1 group">
+                <Link2 className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted group-focus-within:text-accent transition-colors pointer-events-none" />
+                <input
+                  type="text"
+                  readOnly
+                  value={inviteUrl}
+                  onClick={(e) => (e.target as HTMLInputElement).select()}
+                  className="input-base pl-9 text-xs font-mono text-foreground truncate cursor-pointer select-all"
+                />
+              </div>
               <button
                 onClick={copyLink}
-                className="px-4 py-2.5 rounded-xl bg-accent hover:bg-accent-hover text-white text-xs font-semibold flex items-center gap-2 transition-colors shrink-0 shadow-sm"
+                className="px-4 py-2.5 rounded-xl bg-accent hover:bg-accent-hover text-white text-xs font-semibold flex items-center gap-2 transition-colors shrink-0 shadow-sm shadow-indigo-500/10 active:scale-[0.98]"
               >
                 {copiedLink ? (
                   <>
