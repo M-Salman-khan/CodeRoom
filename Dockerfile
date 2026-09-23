@@ -49,7 +49,7 @@ COPY . .
 
 ENV NODE_ENV=production
 
-RUN pnpm exec next build
+RUN pnpm exec next build && rm -rf .next/cache
 
 
 # ==============================================================================

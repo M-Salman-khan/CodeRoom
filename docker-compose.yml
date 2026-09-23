@@ -1,8 +1,5 @@
 services:
   coderoom:
-    build:
-      context: .
-      dockerfile: Dockerfile
     image: ghcr.io/m-salman-khan/coderoom:latest
     container_name: coderoom
     restart: unless-stopped
