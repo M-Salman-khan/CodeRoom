@@ -3,7 +3,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    image: coderoom:latest
+    image: ghcr.io/m-salman-khan/coderoom:latest
     container_name: coderoom
     restart: unless-stopped
     ports:

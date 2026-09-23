@@ -12,6 +12,7 @@ ENV PATH="$PNPM_HOME:$PATH"
 RUN apt-get update && apt-get install -y --no-install-recommends \
     openssl \
     ca-certificates \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
 RUN corepack enable && corepack prepare pnpm@9.15.9 --activate
@@ -72,7 +73,7 @@ RUN pnpm exec prisma generate
 # Stage 5: Production runner
 # ==============================================================================
 
-FROM node:20-bookworm-slim AS runner
+FROM base AS runner
 
 WORKDIR /app
 
@@ -81,12 +82,6 @@ ENV PORT=3000
 ENV HOST=0.0.0.0
 ENV DATABASE_URL="file:/app/data/coderoom.db"
 ENV PATH="/app/node_modules/.bin:$PATH"
-
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    openssl \
-    ca-certificates \
-    curl \
-    && rm -rf /var/lib/apt/lists/*
 
 RUN mkdir -p /app/data && chown -R node:node /app
 
