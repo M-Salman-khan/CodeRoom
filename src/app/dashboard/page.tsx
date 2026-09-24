@@ -55,6 +55,7 @@ function DashboardContent() {
   const [activeTabFilter, setActiveTabFilter] = useState<"all" | "public" | "private" | "mine">("all");
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
   const [copiedLink, setCopiedLink] = useState<string | null>(null);
+  const [enteringRoomCode, setEnteringRoomCode] = useState<string | null>(null);
 
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isJoinOpen, setIsJoinOpen] = useState(false);
@@ -446,10 +447,19 @@ function DashboardContent() {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
               {filteredRooms.map((room) => {
                 const isOwner = room.ownerId === user?.id;
+                const isEntering = enteringRoomCode === room.roomCode;
                 return (
                   <div
                     key={room.id}
-                    className="glass-card glass-card-hover flex flex-col justify-between p-5 rounded-2xl transition-all group relative overflow-hidden"
+                    onClick={(e) => {
+                      const target = e.target as HTMLElement;
+                      if (target.closest("button") || target.closest("a")) return;
+                      setEnteringRoomCode(room.roomCode);
+                      router.push(`/room/${room.roomCode}`);
+                    }}
+                    className={`glass-card glass-card-hover flex flex-col justify-between p-5 rounded-2xl transition-all group relative overflow-hidden cursor-pointer ${
+                      isEntering ? "ring-2 ring-accent opacity-90" : ""
+                    }`}
                   >
                     <div>
                       {/* Top Bar with privacy and code */}
@@ -484,6 +494,7 @@ function DashboardContent() {
                         {/* Room Code Badge with Copy */}
                         <div className="flex items-center gap-1">
                           <button
+                            type="button"
                             onClick={(e) => copyInviteLink(e, room.roomCode)}
                             title="Copy invite link"
                             className="p-1.5 rounded-md bg-panel/80 border border-border/80 text-muted hover:text-foreground hover:border-accent transition-colors"
@@ -496,6 +507,7 @@ function DashboardContent() {
                           </button>
 
                           <button
+                            type="button"
                             onClick={(e) => copyRoomCode(e, room.roomCode)}
                             title="Copy room code"
                             className="flex items-center gap-1 text-[11px] font-mono px-2 py-1 rounded-md bg-panel/80 border border-border/80 text-muted hover:text-foreground hover:border-accent transition-colors"
@@ -510,10 +522,16 @@ function DashboardContent() {
                         </div>
                       </div>
 
-                      {/* Room Name & Description */}
-                      <h3 className="font-semibold text-base text-foreground group-hover:text-accent transition-colors line-clamp-1">
-                        {room.name}
-                      </h3>
+                      {/* Room Name & Description - Clickable directly */}
+                      <Link
+                        href={`/room/${room.roomCode}`}
+                        onClick={() => setEnteringRoomCode(room.roomCode)}
+                        className="block focus:outline-none group/title"
+                      >
+                        <h3 className="font-semibold text-base text-foreground group-hover:text-accent group-hover/title:underline transition-colors line-clamp-1 cursor-pointer">
+                          {room.name}
+                        </h3>
+                      </Link>
                       <p className="text-xs text-muted mt-1.5 line-clamp-2 min-h-[32px] leading-relaxed">
                         {room.description || "No description provided."}
                       </p>
@@ -538,10 +556,22 @@ function DashboardContent() {
 
                       <Link
                         href={`/room/${room.roomCode}`}
-                        className="w-full flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl bg-panel hover:bg-accent hover:text-white text-xs font-semibold border border-border/80 text-foreground transition-all group-hover:border-accent/40 shadow-sm"
+                        onClick={() => setEnteringRoomCode(room.roomCode)}
+                        className={`w-full flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl bg-panel hover:bg-accent hover:text-white text-xs font-semibold border border-border/80 text-foreground transition-all group-hover:border-accent/40 shadow-sm ${
+                          isEntering ? "pointer-events-none opacity-80" : ""
+                        }`}
                       >
-                        <span>Enter Room</span>
-                        <ArrowRight className="h-3.5 w-3.5" />
+                        {isEntering ? (
+                          <>
+                            <Loader2 className="h-3.5 w-3.5 animate-spin text-accent group-hover:text-white" />
+                            <span>Entering Room...</span>
+                          </>
+                        ) : (
+                          <>
+                            <span>Enter Room</span>
+                            <ArrowRight className="h-3.5 w-3.5" />
+                          </>
+                        )}
                       </Link>
                     </div>
                   </div>
@@ -556,9 +586,13 @@ function DashboardContent() {
       <CreateRoomModal
         isOpen={isCreateOpen}
         onClose={() => setIsCreateOpen(false)}
-        onSuccess={() => {
+        onSuccess={(createdRoom) => {
           setIsCreateOpen(false);
-          fetchRooms();
+          if (createdRoom?.roomCode) {
+            router.push(`/room/${createdRoom.roomCode}`);
+          } else {
+            fetchRooms();
+          }
         }}
       />
 

@@ -64,45 +64,51 @@ export default function ThemeToggle({ compact = false, className = "" }: ThemeTo
       </button>
 
       {isOpen && (
-        <div className="absolute right-0 mt-2 w-56 rounded-2xl bg-surface border border-border/80 shadow-2xl p-1.5 z-50 backdrop-blur-xl animate-in fade-in zoom-in-95 duration-150">
-          <div className="px-3 py-2 border-b border-border/60 text-[10px] uppercase font-bold tracking-wider text-muted flex items-center justify-between">
-            <span>Color Theme</span>
-            <Palette className="h-3 w-3 text-accent" />
-          </div>
+        <>
+          <div
+            className="fixed inset-0 z-40"
+            onClick={() => setIsOpen(false)}
+          />
+          <div className="absolute right-0 top-full mt-2 w-64 max-w-[calc(100vw-2rem)] rounded-2xl bg-surface border border-border/80 shadow-2xl p-1.5 z-50 backdrop-blur-xl overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+            <div className="px-3 py-2 border-b border-border/60 text-[10px] uppercase font-bold tracking-wider text-muted flex items-center justify-between">
+              <span>Color Theme</span>
+              <Palette className="h-3 w-3 text-accent" />
+            </div>
 
-          <div className="py-1 space-y-0.5">
-            {options.map((opt) => {
-              const isActive = opt.id === theme;
-              return (
-                <button
-                  key={opt.id}
-                  onClick={() => {
-                    setTheme(opt.id);
-                    setIsOpen(false);
-                  }}
-                  className={`w-full flex items-center justify-between px-2.5 py-2 rounded-xl text-xs transition-all ${
-                    isActive
-                      ? "bg-accent/15 text-accent font-semibold"
-                      : "text-muted hover:text-foreground hover:bg-surface-hover"
-                  }`}
-                >
-                  <div className="flex items-center gap-2.5">
-                    <span
-                      className="h-3.5 w-3.5 rounded-full border border-white/20 shadow-sm shrink-0"
-                      style={{ backgroundColor: opt.accentHex }}
-                    />
-                    <div className="text-left">
-                      <div className="font-medium">{opt.name}</div>
-                      <div className="text-[10px] text-muted line-clamp-1">{opt.description}</div>
+            <div className="py-1 space-y-0.5">
+              {options.map((opt) => {
+                const isActive = opt.id === theme;
+                return (
+                  <button
+                    key={opt.id}
+                    onClick={() => {
+                      setTheme(opt.id);
+                      setIsOpen(false);
+                    }}
+                    className={`w-full flex items-center justify-between px-2.5 py-2 rounded-xl text-xs transition-all ${
+                      isActive
+                        ? "bg-accent/15 text-accent font-semibold"
+                        : "text-muted hover:text-foreground hover:bg-surface-hover"
+                    }`}
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                      <span
+                        className="h-3.5 w-3.5 rounded-full border border-white/20 shadow-sm shrink-0"
+                        style={{ backgroundColor: opt.accentHex }}
+                      />
+                      <div className="text-left min-w-0 flex-1">
+                        <div className="font-medium truncate text-foreground">{opt.name}</div>
+                        <div className="text-[10px] text-muted truncate">{opt.description}</div>
+                      </div>
                     </div>
-                  </div>
 
-                  {isActive && <Check className="h-4 w-4 text-accent shrink-0 ml-2" />}
-                </button>
-              );
-            })}
+                    {isActive && <Check className="h-4 w-4 text-accent shrink-0 ml-2" />}
+                  </button>
+                );
+              })}
+            </div>
           </div>
-        </div>
+        </>
       )}
     </div>
   );

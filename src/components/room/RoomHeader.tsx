@@ -80,7 +80,7 @@ export default function RoomHeader({
   };
 
   return (
-    <header className="h-14 bg-panel-header/90 backdrop-blur-md border-b border-border flex items-center justify-between px-3 md:px-5 select-none shrink-0 z-30 transition-all">
+    <header className="h-14 bg-panel-header/90 backdrop-blur-md border-b border-border flex items-center justify-between px-3 md:px-5 select-none shrink-0 relative z-40 transition-all">
       {/* Left: Brand + Room Name + Room Code */}
       <div className="flex items-center gap-3 md:gap-4 min-w-0">
         <Link

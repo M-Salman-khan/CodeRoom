@@ -13,6 +13,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     openssl \
     ca-certificates \
     curl \
+    default-jdk-headless \
+    python3 \
+    gcc \
+    g++ \
     && rm -rf /var/lib/apt/lists/*
 
 RUN corepack enable && corepack prepare pnpm@9.15.9 --activate

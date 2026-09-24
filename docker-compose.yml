@@ -1,5 +1,6 @@
 services:
   coderoom:
+    build: .
     image: ghcr.io/m-salman-khan/coderoom:latest
     container_name: coderoom
     restart: unless-stopped
