@@ -1,40 +1,51 @@
-# Dependencies
+# Dependencies and package managers
 node_modules
 .pnpm-store
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
 
-# Next.js build output
+# Next.js & Compiler build output
 .next
 out
 build
+dist
+*.tsbuildinfo
 
-# Git
+# Git and CI/CD
 .git
 .gitignore
+.gitattributes
+.github
 
-# Environment files
-.env*.local
-.env
+# Environment files and credentials (never include in image context)
+.env*
+!.env.example
 
-# SQLite local databases and logs
+# Local SQLite databases, journals, and runtime data
+data
 *.db
 *.db-journal
 *.db-wal
 *.db-shm
 
-# Debug logs
-npm-debug.log*
-yarn-debug.log*
-pnpm-debug.log*
-
-# Testing & Coverage
+# Test scripts and fixtures
 coverage
-test-coderoom.ts
+test-*.ts
+test*.ts
 
-# TypeScript & IDE
-*.tsbuildinfo
+# IDE, OS, and Editor files
 .vscode
 .idea
 .DS_Store
+*.swp
+*.swo
 
-# Documentation & Scratch
-README.md
+# Docker and Compose definitions (avoid invalidating context on compose edits)
+docker-compose*.yml
+docker-compose*.yaml
+Dockerfile*
+
+# Documentation
+*.md
+docs/

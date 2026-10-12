@@ -1,9 +1,10 @@
 services:
   coderoom:
     build: .
-    image: ghcr.io/m-salman-khan/coderoom:latest
+    image: ${IMAGE_TAG:-ghcr.io/m-salman-khan/coderoom:latest}
     container_name: coderoom
     restart: unless-stopped
+    stop_grace_period: 30s
     ports:
       - "127.0.0.1:3000:3000"
     environment:
@@ -20,8 +21,8 @@ services:
       # Persistent storage for SQLite database across container restarts and rebuilds
       - coderoom-data:/app/data
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:3000/ || exit 1"]
-      interval: 30s
+      test: ["CMD-SHELL", "curl -f http://localhost:3000/api/health || exit 1"]
+      interval: 15s
       timeout: 5s
       retries: 3
       start_period: 15s
