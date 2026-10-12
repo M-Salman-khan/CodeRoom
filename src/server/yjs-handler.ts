@@ -53,16 +53,27 @@ async function getOrCreateDoc(docName: string): Promise<ManagedDoc> {
     destroyTimeout: null,
   };
 
-  // Seed with existing database content if fileId is valid
+  // Seed with existing database content or persisted Yjs CRDT state
   try {
     const fileRecord = await db.file.findUnique({
       where: { id: fileId },
-      select: { content: true },
+      select: { content: true, yjsState: true },
     });
 
-    if (fileRecord && fileRecord.content) {
-      const yText = doc.getText("monaco");
-      yText.insert(0, fileRecord.content);
+    if (fileRecord) {
+      if (fileRecord.yjsState && fileRecord.yjsState.length > 0) {
+        // Restore exact CRDT state vector (retains clientID and sequence history across restarts)
+        Y.applyUpdate(doc, fileRecord.yjsState);
+      } else if (fileRecord.content) {
+        // First-time seed: insert content and immediately persist initial CRDT state
+        const yText = doc.getText("monaco");
+        yText.insert(0, fileRecord.content);
+        const initialUpdate = Y.encodeStateAsUpdate(doc);
+        await db.file.update({
+          where: { id: fileId },
+          data: { yjsState: initialUpdate as unknown as Uint8Array },
+        });
+      }
     }
   } catch (err) {
     console.error(`Error loading initial content for file ${fileId}:`, err);
@@ -122,13 +133,30 @@ async function saveDocToDb(managed: ManagedDoc) {
 
     const yText = managed.doc.getText("monaco");
     const currentText = yText.toString();
+    const yjsState = Y.encodeStateAsUpdate(managed.doc);
+
     await db.file.update({
       where: { id: managed.fileId },
-      data: { content: currentText },
+      data: {
+        content: currentText,
+        yjsState: yjsState as unknown as Uint8Array,
+      },
     });
   } catch (err) {
     console.error(`Error autosaving file ${managed.fileId}:`, err);
   }
+}
+
+export async function flushAllDocs(): Promise<void> {
+  const promises: Promise<void>[] = [];
+  for (const managed of docs.values()) {
+    if (managed.saveTimeout) {
+      clearTimeout(managed.saveTimeout);
+      managed.saveTimeout = null;
+    }
+    promises.push(saveDocToDb(managed));
+  }
+  await Promise.allSettled(promises);
 }
 
 function sendBinary(conn: WebSocket, message: Uint8Array) {

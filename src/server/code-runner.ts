@@ -1,7 +1,9 @@
 import { ChildProcess, spawn } from "child_process";
 import fs from "fs/promises";
+import syncFs from "fs";
 import path from "path";
 import os from "os";
+import { executeCode, isCommandAvailable } from "@/lib/compiler";
 
 export interface ExecutionState {
   isRunning: boolean;
@@ -164,13 +166,28 @@ export async function runCodeWithLock(
       }
 
       case ".py": {
-        cmd = "python3";
+        const pyCmd =
+          process.platform === "win32" && !isCommandAvailable("python3")
+            ? "python"
+            : "python3";
+        cmd = pyCmd;
         args = ["-u", srcPath];
         break;
       }
 
       case ".java": {
-        cmd = "java";
+        let javaCmd = "java";
+        if (process.env.JAVA_HOME && !isCommandAvailable("java")) {
+          const candidate = path.join(
+            process.env.JAVA_HOME,
+            "bin",
+            process.platform === "win32" ? "java.exe" : "java"
+          );
+          if (syncFs.existsSync(candidate)) {
+            javaCmd = candidate;
+          }
+        }
+        cmd = javaCmd;
         args = [srcPath];
         break;
       }
@@ -233,7 +250,8 @@ export async function runCodeWithLock(
       childProc = spawn(cmd, args, {
         cwd: tmpDir,
         env: {
-          PATH: process.env.PATH,
+          ...process.env,
+          PATH: process.env.PATH || process.env.Path,
           HOME: tmpDir,
           NODE_ENV: "development",
         },
@@ -293,11 +311,43 @@ export async function runCodeWithLock(
         }
       });
 
-      childProc.on("error", (err) => {
+      childProc.on("error", async (err) => {
         clearTimeout(timeout);
+
+        // If local binary was not found (ENOENT), attempt graceful fallback to Judge0 Cloud sandbox
+        const isEnoent =
+          (err as NodeJS.ErrnoException).code === "ENOENT" ||
+          err.message.includes("ENOENT");
+
+        if (isEnoent) {
+          try {
+            const cloudRes = await executeCode({
+              code,
+              language: language || ext.replace(/^\./, ""),
+              filename: fileName,
+              preferEngine: "cloud",
+            });
+
+            if (cloudRes && cloudRes.status !== "error") {
+              return resolve({
+                stdout: cloudRes.stdout,
+                stderr: cloudRes.stderr,
+                exitCode: cloudRes.exitCode ?? 0,
+                executionTimeMs: Date.now() - startTime,
+              });
+            }
+          } catch {
+            // Cloud fallback failed, fall through to diagnostic message
+          }
+        }
+
+        const helpfulHint = isEnoent
+          ? `\n[Diagnostic: The '${cmd}' binary was not found in PATH on this system. If you recently installed it, please restart your server/terminal session so the updated PATH is loaded.]`
+          : "";
+
         resolve({
           stdout,
-          stderr: stderr + `\nProcess error: ${err.message}`,
+          stderr: stderr + `\nProcess error: ${err.message}${helpfulHint}`,
           exitCode: -1,
           executionTimeMs: Date.now() - startTime,
           error: err.message,

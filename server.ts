@@ -5,7 +5,7 @@ import next from "next";
 import { WebSocketServer } from "ws";
 import os from "os";
 import { verifySessionToken, COOKIE_NAME } from "./src/lib/auth";
-import { handleYjsConnection } from "./src/server/yjs-handler";
+import { handleYjsConnection, flushAllDocs } from "./src/server/yjs-handler";
 import { handleRoomConnection } from "./src/server/room-handler";
 
 const dev = process.env.NODE_ENV !== "production";
@@ -151,8 +151,14 @@ app.prepare().then(() => {
     console.log("=======================================================\n");
   });
 
-  const shutdown = () => {
+  const shutdown = async () => {
     console.log("\n🛑 Gracefully shutting down CodeRoom server...");
+    try {
+      await flushAllDocs();
+      console.log("Flushed all collaborative documents to database.");
+    } catch (err) {
+      console.error("Error flushing documents on shutdown:", err);
+    }
     server.close(() => {
       console.log("Server closed.");
       process.exit(0);

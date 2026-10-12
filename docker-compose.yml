@@ -14,6 +14,8 @@ services:
       - AUTH_SECRET=${AUTH_SECRET:-coderoom-lan-super-secret-key-at-least-32-chars-long}
       - NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL:-https://codingroom.duckdns.org}
       - SEED_DATABASE=${SEED_DATABASE:-false}
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
     volumes:
       # Persistent storage for SQLite database across container restarts and rebuilds
       - coderoom-data:/app/data

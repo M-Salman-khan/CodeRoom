@@ -365,13 +365,20 @@ export default function CodeEditor({
     }
   }, [canEditCurrentFile]);
 
-  const updateSaveStatus = useCallback(
-    (status: SaveStatus) => {
-      setSaveStatus(status);
-      if (onSaveStatusChange) onSaveStatusChange(status);
-    },
-    [onSaveStatusChange]
-  );
+  const onSaveStatusChangeRef = useRef(onSaveStatusChange);
+  useEffect(() => {
+    onSaveStatusChangeRef.current = onSaveStatusChange;
+  }, [onSaveStatusChange]);
+
+  const authTokenRef = useRef(authToken);
+  useEffect(() => {
+    authTokenRef.current = authToken;
+  }, [authToken]);
+
+  const updateSaveStatus = useCallback((status: SaveStatus) => {
+    setSaveStatus(status);
+    onSaveStatusChangeRef.current?.(status);
+  }, []);
 
   // Load editor preferences from localStorage
   useEffect(() => {
@@ -490,6 +497,14 @@ export default function CodeEditor({
       } catch {}
       docRef.current = null;
     }
+    if (editorRef.current && !isEditorDisposed(editorRef.current)) {
+      try {
+        const curModel = editorRef.current.getModel();
+        if (curModel && !curModel.isDisposed()) {
+          curModel.dispose();
+        }
+      } catch {}
+    }
   }, []);
 
   const setupCollaboration = useCallback(
@@ -513,12 +528,10 @@ export default function CodeEditor({
         const lang = getLanguageFromFilename(targetFile.name);
         const modelUri = monaco.Uri.parse(`inmemory://coderoom/${roomId}/${targetFile.id}`);
         let model = monaco.editor.getModel(modelUri);
-        if (!model || model.isDisposed()) {
-          model = monaco.editor.createModel("", lang, modelUri);
-        } else {
-          monaco.editor.setModelLanguage(model, lang);
-          model.setValue("");
+        if (model && !model.isDisposed()) {
+          model.dispose();
         }
+        model = monaco.editor.createModel("", lang, modelUri);
 
         editorInstance.setModel(model);
 
@@ -531,7 +544,7 @@ export default function CodeEditor({
         const wsUrl = `${wsProtocol}//${wsHost}/yjs`;
 
         const token =
-          authToken ||
+          authTokenRef.current ||
           sessionStorage.getItem("coderoom_token") ||
           localStorage.getItem("coderoom_token") ||
           "";
@@ -631,7 +644,6 @@ export default function CodeEditor({
     [
       roomId,
       currentUser.username,
-      authToken,
       cleanupCollaboration,
       updateSaveStatus,
     ]
@@ -677,6 +689,40 @@ export default function CodeEditor({
     editorInstance.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter, () => {
       handleRun();
     });
+
+    // Configure skyblue highlighter selection styling for Monaco editor themes
+    try {
+      monaco.editor.defineTheme("vs-dark", {
+        base: "vs-dark",
+        inherit: true,
+        rules: [],
+        colors: {
+          "editor.selectionBackground": "#38bdf866", // Skyblue highlighter
+          "editor.selectionHighlightBackground": "#38bdf838",
+          "editor.selectionHighlightBorder": "#38bdf888",
+          "editor.inactiveSelectionBackground": "#38bdf833",
+          "editor.wordHighlightBackground": "#38bdf833",
+          "editor.wordHighlightStrongBackground": "#0ea5e944",
+          "editor.findMatchHighlightBackground": "#38bdf855",
+        },
+      });
+
+      monaco.editor.defineTheme("hc-black", {
+        base: "hc-black",
+        inherit: true,
+        rules: [],
+        colors: {
+          "editor.selectionBackground": "#38bdf877",
+          "editor.selectionHighlightBackground": "#38bdf844",
+          "editor.selectionHighlightBorder": "#38bdf8aa",
+          "editor.inactiveSelectionBackground": "#38bdf844",
+          "editor.wordHighlightBackground": "#38bdf844",
+          "editor.wordHighlightStrongBackground": "#0ea5e955",
+        },
+      });
+
+      monaco.editor.setTheme(editorTheme);
+    } catch {}
 
     editorInstance.onDidChangeCursorPosition((e) => {
       if (onCursorChange) {

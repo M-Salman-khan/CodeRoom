@@ -113,31 +113,47 @@ function heuristicErrorAnalysis(
 }
 
 /**
- * Call Google Gemini API (gemini-1.5-flash or gemini-2.0-flash)
+ * Call Google Gemini API (gemini-flash-latest with fallback cascade)
  */
 async function callGemini(apiKey: string, prompt: string): Promise<string> {
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
-  const res = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      contents: [{ parts: [{ text: prompt }] }],
-      generationConfig: {
-        temperature: 0.2,
-        maxOutputTokens: 2048,
-      },
-    }),
-  });
+  const models = [
+    "gemini-flash-latest",
+    "gemini-3.5-flash",
+    "gemini-3.7-flash",
+    "gemini-3.8-flash",
+  ];
+  let lastError: Error | null = null;
 
-  if (!res.ok) {
-    const errText = await res.text();
-    throw new Error(`Gemini API error (${res.status}): ${errText}`);
+  for (const model of models) {
+    try {
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: {
+            temperature: 0.2,
+            maxOutputTokens: 2048,
+          },
+        }),
+      });
+
+      if (!res.ok) {
+        const errText = await res.text();
+        lastError = new Error(`Gemini API error (${res.status}) on model ${model}: ${errText}`);
+        continue;
+      }
+
+      const data = await res.json();
+      const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+      if (text) return text;
+    } catch (err: unknown) {
+      lastError = err instanceof Error ? err : new Error(String(err));
+    }
   }
 
-  const data = await res.json();
-  const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-  if (!text) throw new Error("Empty response from Gemini");
-  return text;
+  throw lastError || new Error("Failed to get response from Gemini API");
 }
 
 /**
@@ -205,13 +221,8 @@ ${errorText}
 \`\`\`
 ${stdout ? `Stdout context:\n\`\`\`\n${stdout}\n\`\`\`\n` : ""}
 
-Please analyze this error and provide:
-1. Root Cause: Explain precisely why this error happened.
-2. Culprit Line: Mention the line number(s) if applicable.
-3. How to Fix: Explain the exact correction.
-4. Corrected Code: Provide the complete fixed code block inside triple backticks (\`\`\`).
-
-Keep your response concise, clear, and practical for developers.`;
+Explain why this error happened, mention the culprit line number, explain how to fix it, and provide the complete fixed code block inside triple backticks (\`\`\`).
+Keep your response natural, conversational, and direct without robotic numbered templates.`;
 
     try {
       let aiResponse = "";
@@ -260,8 +271,8 @@ export async function reviewCodeWithAI(
   const openaiKey = process.env.OPENAI_API_KEY?.trim();
 
   if (geminiKey || openaiKey) {
-    const prompt = `You are a Senior Staff Software Engineer reviewing code in CodeRoom.
-Perform a thorough and constructive Code Review of this file:
+    const prompt = `You are a friendly and experienced peer programmer in CodeRoom reviewing this code.
+Give a natural, constructive code review:
 
 File: ${fileName}
 Code:
@@ -269,14 +280,13 @@ Code:
 ${code}
 \`\`\`
 
-Format your review into:
-1. **Summary & Overall Quality Rating** (e.g. Clean, Needs Improvement, Buggy)
-2. **Potential Bugs & Edge Cases**
-3. **Performance & Security Suggestions**
-4. **Best Practices & Readability**
-5. **Improved / Refactored Code Snippet** (if applicable in \`\`\` code block)
-
-Be concise, practical, and helpful.`;
+Style instructions:
+- Write in a natural, conversational reply (do NOT use robotic template headers like "### 1. Summary & Overall Quality Rating", "### 2. Potential Bugs", etc.).
+- Give a brief, direct overall impression.
+- Point out any bugs, compilation errors, or edge cases clearly.
+- Offer friendly tips for clean code and best practices.
+- If fixes are needed, include the clean corrected code snippet inside triple backticks (\`\`\`).
+- Keep it concise, practical, and easy to read.`;
 
     try {
       let aiResponse = "";
@@ -324,8 +334,13 @@ Be concise, practical, and helpful.`;
     }
   }
 
+  const hasKey = Boolean(geminiKey || openaiKey);
+  const summary = hasKey
+    ? `Heuristic review for ${fileName} (${lines.length} lines). (External AI service temporarily unavailable - check server logs)`
+    : `Code review for ${fileName} (${lines.length} lines). Add GEMINI_API_KEY to your .env to enable deep LLM-powered reviews!`;
+
   return {
-    summary: `Code review for ${fileName} (${lines.length} lines). Add GEMINI_API_KEY to your .env to enable deep LLM-powered reviews!`,
+    summary,
     rating: "Heuristic Check",
     issues,
     suggestions: suggestions.length > 0 ? suggestions : ["Structure looks clean and concise."],

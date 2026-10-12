@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import { getLanguageFromFilename } from "@/lib/utils";
 import { canUserEdit } from "@/lib/permissions";
+import * as Y from "yjs";
 
 export async function GET(
   _req: Request,
@@ -101,6 +102,15 @@ export async function POST(
 
     const language = type === "file" ? getLanguageFromFilename(trimmedName) : null;
 
+    let initialYjsState: Uint8Array | null = null;
+    if (type === "file") {
+      const ydoc = new Y.Doc();
+      if (content) {
+        ydoc.getText("monaco").insert(0, content);
+      }
+      initialYjsState = Y.encodeStateAsUpdate(ydoc);
+    }
+
     const file = await db.file.create({
       data: {
         roomId: room.id,
@@ -109,6 +119,7 @@ export async function POST(
         type,
         language,
         content: type === "file" ? content : "",
+        yjsState: initialYjsState as unknown as Uint8Array,
       },
     });
 

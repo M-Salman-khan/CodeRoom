@@ -171,8 +171,40 @@ export default function SettingsPage() {
 
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col md:flex-row">
-      {/* Sidebar */}
-      <aside className="w-full md:w-64 border-b md:border-b-0 md:border-r border-border bg-surface flex flex-col justify-between shrink-0">
+      {/* Mobile Top Navigation Bar */}
+      <header className="md:hidden h-14 border-b border-border bg-surface px-4 flex items-center justify-between shrink-0 sticky top-0 z-30">
+        <div className="flex items-center gap-2.5">
+          <Link href="/dashboard" className="flex items-center gap-2 group">
+            <div className="h-8 w-8 rounded-lg bg-accent text-white flex items-center justify-center shadow-sm">
+              <Code2 className="h-4 w-4" />
+            </div>
+            <span className="font-bold text-base tracking-tight text-foreground">
+              Code<span className="text-accent">Room</span>
+            </span>
+          </Link>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <Link
+            href="/dashboard"
+            className="px-2.5 py-1.5 rounded-lg border border-border text-muted hover:text-foreground text-xs font-medium flex items-center gap-1.5 transition-colors"
+          >
+            <LayoutDashboard className="h-3.5 w-3.5" />
+            <span className="hidden xs:inline">Dashboard</span>
+          </Link>
+          <ThemeToggle compact />
+          <button
+            onClick={handleLogout}
+            title="Log out"
+            className="p-1.5 rounded-lg text-muted hover:text-red-400 hover:bg-surface-hover transition-colors"
+          >
+            <LogOut className="h-4 w-4" />
+          </button>
+        </div>
+      </header>
+
+      {/* Desktop Sidebar */}
+      <aside className="hidden md:flex md:w-64 border-r border-border bg-surface flex-col justify-between shrink-0 h-screen sticky top-0">
         <div>
           {/* Logo */}
           <div className="h-16 px-6 border-b border-border/80 flex items-center justify-between">
@@ -236,74 +268,78 @@ export default function SettingsPage() {
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 p-6 md:p-10 overflow-y-auto max-w-5xl">
+      <main className="flex-1 p-4 sm:p-6 md:p-10 overflow-y-auto max-w-5xl">
         {/* Header */}
-        <div className="flex items-center justify-between pb-6 border-b border-border">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-5 sm:pb-6 border-b border-border gap-4">
           <div className="flex items-center gap-3">
             <Link
               href="/dashboard"
-              className="p-2 rounded-xl border border-border text-muted hover:text-foreground hover:bg-surface transition-colors"
+              className="p-2 rounded-xl border border-border text-muted hover:text-foreground hover:bg-surface transition-colors shrink-0"
               title="Back to Dashboard"
             >
               <ArrowLeft className="h-4 w-4" />
             </Link>
-            <div>
-              <h1 className="text-2xl font-bold tracking-tight">Preferences & Settings</h1>
-              <p className="text-xs text-muted mt-0.5">Customize appearance, editor options, and manage your account.</p>
+            <div className="min-w-0">
+              <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground truncate">
+                Preferences & Settings
+              </h1>
+              <p className="text-xs text-muted mt-0.5 truncate sm:whitespace-normal">
+                Customize appearance, editor options, and manage your account.
+              </p>
             </div>
           </div>
         </div>
 
-        <div className="mt-8 space-y-8">
+        <div className="mt-6 sm:mt-8 space-y-6 sm:space-y-8">
           {/* Section 1: Appearance & Theme */}
-          <div className="glass-card p-6 rounded-3xl">
-            <div className="flex items-center justify-between pb-4 mb-5 border-b border-border">
+          <div className="glass-card p-4 sm:p-6 rounded-2xl sm:rounded-3xl">
+            <div className="flex items-center justify-between pb-3.5 sm:pb-4 mb-4 sm:mb-5 border-b border-border">
               <div className="flex items-center gap-2.5">
-                <div className="h-8 w-8 rounded-xl bg-accent/15 text-accent flex items-center justify-center">
+                <div className="h-8 w-8 rounded-xl bg-accent/15 text-accent flex items-center justify-center shrink-0">
                   <Palette className="h-4 w-4" />
                 </div>
                 <div>
-                  <h2 className="font-semibold text-base text-foreground">Appearance & Theme</h2>
+                  <h2 className="font-semibold text-sm sm:text-base text-foreground">Appearance & Theme</h2>
                   <p className="text-xs text-muted">Select your preferred color theme across the entire application.</p>
                 </div>
               </div>
             </div>
 
             {/* Visual Theme Cards */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
               {options.map((opt) => {
                 const isActive = opt.id === theme;
                 return (
                   <button
                     key={opt.id}
                     onClick={() => setTheme(opt.id)}
-                    className={`flex flex-col justify-between p-4 rounded-2xl border text-left transition-all ${
+                    className={`flex flex-col justify-between p-3.5 sm:p-4 rounded-2xl border text-left transition-all ${
                       isActive
                         ? "border-accent bg-accent/10 shadow-lg shadow-accent/10 ring-2 ring-accent"
                         : "border-border bg-surface hover:border-accent/40 hover:bg-surface-hover"
                     }`}
                   >
                     <div>
-                      <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center justify-between mb-2.5 sm:mb-3">
                         <div className="flex items-center gap-2">
                           <span
-                            className="h-4 w-4 rounded-full border border-white/20 shadow-sm"
+                            className="h-4 w-4 rounded-full border border-white/20 shadow-sm shrink-0"
                             style={{ backgroundColor: opt.accentHex }}
                           />
                           <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-surface border border-border text-muted">
                             {opt.badge}
                           </span>
                         </div>
-                        {isActive && <Check className="h-4 w-4 text-accent" />}
+                        {isActive && <Check className="h-4 w-4 text-accent shrink-0" />}
                       </div>
 
                       <div className="font-semibold text-sm text-foreground">{opt.name}</div>
                       <p className="text-xs text-muted mt-1 leading-relaxed">{opt.description}</p>
                     </div>
 
-                    <div className="mt-4 pt-3 border-t border-border/60 flex items-center gap-1.5 text-[11px] font-mono text-muted">
+                    <div className="mt-3.5 sm:mt-4 pt-2.5 sm:pt-3 border-t border-border/60 flex items-center gap-1.5 text-[11px] font-mono text-muted">
                       <span
-                        className="h-2.5 w-2.5 rounded-full inline-block"
+                        className="h-2.5 w-2.5 rounded-full inline-block shrink-0"
                         style={{ backgroundColor: opt.bgHex }}
                       />
                       <span>{opt.bgHex}</span>
@@ -315,19 +351,19 @@ export default function SettingsPage() {
           </div>
 
           {/* Section 2: Code Editor Preferences */}
-          <div className="glass-card p-6 rounded-3xl">
-            <div className="flex items-center gap-2.5 pb-4 mb-5 border-b border-border">
-              <div className="h-8 w-8 rounded-xl bg-accent/15 text-accent flex items-center justify-center">
+          <div className="glass-card p-4 sm:p-6 rounded-2xl sm:rounded-3xl">
+            <div className="flex items-center gap-2.5 pb-3.5 sm:pb-4 mb-4 sm:mb-5 border-b border-border">
+              <div className="h-8 w-8 rounded-xl bg-accent/15 text-accent flex items-center justify-center shrink-0">
                 <Sliders className="h-4 w-4" />
               </div>
               <div>
-                <h2 className="font-semibold text-base text-foreground">Code Editor Preferences</h2>
+                <h2 className="font-semibold text-sm sm:text-base text-foreground">Code Editor Preferences</h2>
                 <p className="text-xs text-muted">Configure your Monaco coding environment in all rooms.</p>
               </div>
             </div>
 
             <form onSubmit={handleSaveEditorSettings} className="space-y-4 max-w-lg">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                 <div>
                   <label className="block text-[11px] font-semibold text-muted uppercase tracking-wider mb-1.5">
                     Font Size
@@ -375,10 +411,12 @@ export default function SettingsPage() {
                 </select>
               </div>
 
-              <div className="pt-1 flex items-center justify-between p-3.5 rounded-xl bg-surface border border-border">
-                <div>
-                  <span className="text-xs font-medium text-foreground">Code Minimap</span>
-                  <p className="text-[11px] text-muted">Show miniature code overview scrollbar</p>
+              <div className="pt-1 flex items-center justify-between p-3 sm:p-3.5 rounded-xl bg-surface border border-border gap-3">
+                <div className="min-w-0">
+                  <span className="text-xs font-medium text-foreground block truncate">Code Minimap</span>
+                  <p className="text-[11px] text-muted truncate sm:whitespace-normal">
+                    Show miniature code overview scrollbar
+                  </p>
                 </div>
                 <button
                   type="button"
@@ -397,7 +435,7 @@ export default function SettingsPage() {
 
               <button
                 type="submit"
-                className="mt-4 px-5 py-2.5 rounded-xl bg-accent hover:bg-accent-hover text-white text-xs font-semibold transition-all flex items-center gap-2 shadow-md shadow-accent/20"
+                className="mt-4 w-full sm:w-auto px-5 py-2.5 rounded-xl bg-accent hover:bg-accent-hover text-white text-xs font-semibold transition-all flex items-center justify-center gap-2 shadow-md shadow-accent/20"
               >
                 {editorSaved ? (
                   <>
@@ -412,18 +450,18 @@ export default function SettingsPage() {
           </div>
 
           {/* Section 3: Profile & Security */}
-          <div className="glass-card p-6 rounded-3xl">
-            <div className="flex items-center gap-2.5 pb-4 mb-5 border-b border-border">
-              <div className="h-8 w-8 rounded-xl bg-accent/15 text-accent flex items-center justify-center">
+          <div className="glass-card p-4 sm:p-6 rounded-2xl sm:rounded-3xl">
+            <div className="flex items-center gap-2.5 pb-3.5 sm:pb-4 mb-4 sm:mb-5 border-b border-border">
+              <div className="h-8 w-8 rounded-xl bg-accent/15 text-accent flex items-center justify-center shrink-0">
                 <User className="h-4 w-4" />
               </div>
               <div>
-                <h2 className="font-semibold text-base text-foreground">Profile & Password</h2>
+                <h2 className="font-semibold text-sm sm:text-base text-foreground">Profile & Password</h2>
                 <p className="text-xs text-muted">Manage your username and account credentials.</p>
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 mb-5 sm:mb-6">
               <div>
                 <label className="block text-xs font-semibold text-muted uppercase tracking-wider mb-1.5">
                   Username
@@ -448,73 +486,73 @@ export default function SettingsPage() {
             </div>
 
             {/* Change Password */}
-            <div className="pt-6 border-t border-border">
-              <div className="flex items-center gap-2 mb-4">
+            <div className="pt-5 sm:pt-6 border-t border-border">
+              <div className="flex items-center gap-2 mb-3.5 sm:mb-4">
                 <KeyRound className="h-4 w-4 text-accent" />
                 <h3 className="text-sm font-semibold">Change Password</h3>
               </div>
 
               {passError && (
-                <div className="mb-4 p-3.5 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 text-xs flex items-center gap-2">
+                <div className="mb-4 p-3 sm:p-3.5 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 text-xs flex items-center gap-2">
                   <AlertCircle className="h-4 w-4 shrink-0" />
                   <span>{passError}</span>
                 </div>
               )}
 
               {passSuccess && (
-                <div className="mb-4 p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs flex items-center gap-2">
+                <div className="mb-4 p-3 sm:p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs flex items-center gap-2">
                   <Check className="h-4 w-4 shrink-0" />
                   <span>{passSuccess}</span>
                 </div>
               )}
 
-              <form onSubmit={handlePasswordChange} className="space-y-4 max-w-md">
+              <form onSubmit={handlePasswordChange} className="space-y-5 max-w-lg">
                 <div>
-                  <label className="block text-[11px] font-semibold text-muted uppercase tracking-wider mb-1.5">
+                  <label className="block text-xs font-semibold text-muted uppercase tracking-wider mb-2">
                     Current Password
                   </label>
                   <input
                     type="password"
                     value={currentPassword}
                     onChange={(e) => setCurrentPassword(e.target.value)}
-                    placeholder="••••••••"
+                    placeholder="Enter current password"
                     required
-                    className="w-full px-4 py-2.5 rounded-xl input-base text-sm"
+                    className="w-full px-4 py-3 rounded-xl input-base text-sm font-medium h-12"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-[11px] font-semibold text-muted uppercase tracking-wider mb-1.5">
+                  <label className="block text-xs font-semibold text-muted uppercase tracking-wider mb-2">
                     New Password (min. 8 chars)
                   </label>
                   <input
                     type="password"
                     value={newPassword}
                     onChange={(e) => setNewPassword(e.target.value)}
-                    placeholder="••••••••"
+                    placeholder="Enter at least 8 characters"
                     required
-                    className="w-full px-4 py-2.5 rounded-xl input-base text-sm"
+                    className="w-full px-4 py-3 rounded-xl input-base text-sm font-medium h-12"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-[11px] font-semibold text-muted uppercase tracking-wider mb-1.5">
+                  <label className="block text-xs font-semibold text-muted uppercase tracking-wider mb-2">
                     Confirm New Password
                   </label>
                   <input
                     type="password"
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
-                    placeholder="••••••••"
+                    placeholder="Confirm your new password"
                     required
-                    className="w-full px-4 py-2.5 rounded-xl input-base text-sm"
+                    className="w-full px-4 py-3 rounded-xl input-base text-sm font-medium h-12"
                   />
                 </div>
 
                 <button
                   type="submit"
                   disabled={passLoading}
-                  className="mt-2 px-5 py-2.5 rounded-xl bg-accent hover:bg-accent-hover text-white text-xs font-semibold transition-all flex items-center gap-2 disabled:opacity-50 shadow-md shadow-accent/20"
+                  className="mt-2 w-full sm:w-auto px-6 py-3 rounded-xl bg-accent hover:bg-accent-hover text-white text-xs font-semibold transition-all flex items-center justify-center gap-2 disabled:opacity-50 shadow-md shadow-accent/20"
                 >
                   {passLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <KeyRound className="h-3.5 w-3.5" />}
                   <span>Update Password</span>

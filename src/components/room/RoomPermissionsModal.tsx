@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   X,
   Shield,
@@ -90,13 +90,29 @@ export default function RoomPermissionsModal({
     }
   };
 
+  // Handle ESC key press
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && isOpen) {
+        onClose();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isOpen, onClose]);
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in duration-150">
-      <div className="bg-surface border border-border rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl max-h-[90vh] flex flex-col">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 md:p-6 bg-black/75 backdrop-blur-sm animate-in fade-in duration-150 overflow-y-auto"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
+      <div className="bg-surface border border-border rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl max-h-[92vh] sm:max-h-[85vh] flex flex-col min-h-0 my-auto">
         {/* Header */}
-        <div className="flex items-center justify-between p-5 border-b border-border bg-panel-header">
-          <div className="flex items-center gap-2.5">
-            <div className="h-8 w-8 rounded-lg bg-accent/15 border border-accent/30 text-accent flex items-center justify-center">
+        <div className="flex items-center justify-between px-4 py-3.5 sm:px-6 sm:py-4 border-b border-border bg-panel-header shrink-0">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="h-8 w-8 rounded-lg bg-accent/15 border border-accent/30 text-accent flex items-center justify-center shrink-0">
               <Shield className="h-4 w-4" />
             </div>
             <div>
@@ -156,7 +172,7 @@ export default function RoomPermissionsModal({
         </div>
 
         {/* Content body */}
-        <div className="p-5 overflow-y-auto space-y-4 flex-1">
+        <div className="p-4 sm:p-5 overflow-y-auto space-y-4 flex-1 min-h-0">
           {activeTab === "requests" && (
             <div className="space-y-3">
               {pendingRequests.length === 0 ? (

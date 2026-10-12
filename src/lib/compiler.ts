@@ -38,9 +38,13 @@ export interface RunOptions {
 }
 
 // Check which compilers are installed locally
-function isCommandAvailable(command: string): boolean {
+export function isCommandAvailable(command: string): boolean {
   try {
-    execSync(`which ${command} 2>/dev/null`, { stdio: "ignore" });
+    const checkCmd =
+      process.platform === "win32"
+        ? `where ${command}`
+        : `which ${command} 2>/dev/null`;
+    execSync(checkCmd, { stdio: "ignore" });
     return true;
   } catch {
     return false;
@@ -60,7 +64,7 @@ let hasPerl = false;
 
 function checkLocalTools() {
   if (localAvailabilityChecked) return;
-  hasPython3 = isCommandAvailable("python3");
+  hasPython3 = isCommandAvailable("python3") || (process.platform === "win32" && isCommandAvailable("python"));
   hasNode = isCommandAvailable("node");
   hasTsx = fs.existsSync(path.resolve(process.cwd(), "node_modules/.bin/tsx")) || isCommandAvailable("tsx");
   hasGcc = isCommandAvailable("gcc");
@@ -425,8 +429,9 @@ async function executeLocally(
       case "python": {
         const scriptPath = path.join(tempDir, "script.py");
         fs.writeFileSync(scriptPath, code);
+        const pyCmd = process.platform === "win32" && !isCommandAvailable("python3") ? "python" : "python3";
         const res = await runProcess({
-          cmd: "python3",
+          cmd: pyCmd,
           args: ["-u", "script.py"],
           cwd: tempDir,
           stdin,

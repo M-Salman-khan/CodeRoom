@@ -42,17 +42,32 @@ export default function ShareModal({
     setTimeout(() => setCopiedLink(false), 2000);
   };
 
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && isOpen) {
+        onClose();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isOpen, onClose]);
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in duration-150">
-      <div className="bg-surface border border-border rounded-2xl w-full max-w-md overflow-hidden shadow-2xl">
-        <div className="flex items-center justify-between p-5 border-b border-border">
-          <div className="flex items-center gap-2.5">
-            <div className="h-8 w-8 rounded-lg bg-accent/15 border border-accent/30 text-accent flex items-center justify-center">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/75 backdrop-blur-sm animate-in fade-in duration-150 overflow-y-auto"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
+      <div className="bg-surface border border-border rounded-2xl w-full max-w-md overflow-hidden shadow-2xl my-auto">
+        <div className="flex items-center justify-between px-4 py-3.5 sm:px-6 sm:py-4 border-b border-border bg-panel-header shrink-0">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="h-8 w-8 rounded-lg bg-accent/15 border border-accent/30 text-accent flex items-center justify-center shrink-0">
               <Share2 className="h-4 w-4" />
             </div>
-            <div>
-              <h2 className="font-semibold text-base text-foreground">Share Room</h2>
-              <p className="text-xs text-muted truncate max-w-[240px]">{roomName}</p>
+            <div className="min-w-0">
+              <h2 className="font-semibold text-sm sm:text-base text-foreground truncate">Share Room</h2>
+              <p className="text-[11px] sm:text-xs text-muted truncate max-w-[200px] sm:max-w-[240px]">{roomName}</p>
             </div>
           </div>
           <button

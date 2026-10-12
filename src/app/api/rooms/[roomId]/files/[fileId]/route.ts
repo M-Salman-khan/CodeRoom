@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import { getLanguageFromFilename } from "@/lib/utils";
 import { canUserEdit } from "@/lib/permissions";
+import * as Y from "yjs";
 
 export async function GET(
   _req: Request,
@@ -77,6 +78,9 @@ export async function PATCH(
 
     if (content !== undefined && existing.type === "file") {
       updateData.content = content;
+      const ydoc = new Y.Doc();
+      ydoc.getText("monaco").insert(0, content);
+      updateData.yjsState = Y.encodeStateAsUpdate(ydoc) as unknown as Uint8Array;
     }
 
     if (language !== undefined && existing.type === "file") {

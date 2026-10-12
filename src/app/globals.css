@@ -168,37 +168,39 @@ body {
 }
 
 /* High-end developer input styling */
-.input-base {
-  background-color: var(--input-bg);
-  border: 1px solid var(--input-border);
-  color: var(--foreground);
-  border-radius: 0.75rem;
-  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.1);
-}
+@layer components {
+  .input-base {
+    background-color: var(--input-bg);
+    border: 1px solid var(--input-border);
+    color: var(--foreground);
+    border-radius: 0.75rem;
+    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.1);
+  }
 
-.input-base::placeholder {
-  color: var(--muted);
-  opacity: 0.6;
-}
+  .input-base::placeholder {
+    color: var(--muted);
+    opacity: 0.6;
+  }
 
-.input-base:hover:not(:disabled) {
-  border-color: var(--accent);
-}
+  .input-base:hover:not(:disabled) {
+    border-color: var(--accent);
+  }
 
-.input-base:focus,
-.input-base:focus-within {
-  outline: none;
-  border-color: var(--accent);
-  box-shadow: 
-    0 0 0 3px var(--glow-color),
-    0 0 20px -3px var(--glow-color),
-    inset 0 1px 2px rgba(0, 0, 0, 0.1);
-}
+  .input-base:focus,
+  .input-base:focus-within {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 
+      0 0 0 3px var(--glow-color),
+      0 0 20px -3px var(--glow-color),
+      inset 0 1px 2px rgba(0, 0, 0, 0.1);
+  }
 
-.input-base:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
+  .input-base:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
 }
 
 /* Yjs Monaco Remote Cursor and Selection Styles */
@@ -229,6 +231,45 @@ body {
   opacity: 0.95;
   z-index: 20;
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5);
+}
+
+/* ==========================================================================
+   Skyblue Highlighter Text Selection Styles
+   ========================================================================== */
+::selection {
+  background-color: rgba(56, 189, 248, 0.45) !important; /* skyblue highlighter */
+  color: inherit !important;
+}
+
+::-moz-selection {
+  background-color: rgba(56, 189, 248, 0.45) !important;
+  color: inherit !important;
+}
+
+/* Monaco Editor Local Selected Area - Skyblue with luminous highlighter glow */
+.monaco-editor .selected-text {
+  background-color: rgba(56, 189, 248, 0.42) !important;
+  border-radius: 2px !important;
+  box-shadow: 0 0 3px rgba(56, 189, 248, 0.4) !important;
+}
+
+.monaco-editor.focused .selected-text {
+  background-color: rgba(56, 189, 248, 0.52) !important;
+  box-shadow: 0 0 8px 1px rgba(56, 189, 248, 0.5) !important;
+}
+
+/* Highlight of other occurrences of the selected word */
+.monaco-editor .selectionHighlight {
+  background-color: rgba(56, 189, 248, 0.25) !important;
+  border: 1px solid rgba(56, 189, 248, 0.6) !important;
+  border-radius: 2px !important;
+}
+
+.monaco-editor .wordHighlight,
+.monaco-editor .wordHighlightStrong {
+  background-color: rgba(56, 189, 248, 0.28) !important;
+  border: 1px solid rgba(56, 189, 248, 0.6) !important;
+  border-radius: 2px !important;
 }
 
 @layer utilities {
