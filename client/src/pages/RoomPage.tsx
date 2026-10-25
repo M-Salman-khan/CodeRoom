@@ -1957,15 +1957,16 @@ export default function RoomPage() {
 
       {/* Focus-mode exit pill */}
       {isFocusMode && (
-        <div className="absolute right-3 top-3 z-50 flex items-center gap-2 rounded-xl border border-border bg-surface/90 px-3 py-1.5 shadow-xl backdrop-blur-md">
+        <div className="fixed left-1/2 top-3 z-[100] flex -translate-x-1/2 items-center gap-2 rounded-xl border border-border bg-surface px-3 py-1.5 shadow-2xl">
           <span className="text-xs font-semibold text-foreground">
             Focus Mode
           </span>
           <button
             type="button"
             onClick={() => setIsFocusMode(false)}
-            title="Exit Focus Mode (F11)"
-            className="ml-1 flex items-center gap-1 text-xs font-semibold text-accent hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
+            title="Exit Focus Mode (F11 or Esc)"
+            aria-label="Exit Focus Mode"
+            className="ml-1 flex items-center gap-1 rounded-md px-2 py-1 text-xs font-semibold text-accent transition-colors hover:bg-accent/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
           >
             <Minimize2 className="h-3.5 w-3.5" />
             <span>Exit</span>
