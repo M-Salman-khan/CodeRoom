@@ -487,6 +487,12 @@ The workflow prints `/api/config` after deployment and warns when invitation lin
 
 ## Reverse Proxy
 
+A ready-to-use site config for `codingroom.duckdns.org` is provided at
+[`deploy/nginx/codingroom.duckdns.org.conf`](./deploy/nginx/codingroom.duckdns.org.conf). It proxies
+the domain to the app container on `127.0.0.1:3000` and includes WebSocket upgrades for `/ws` and
+`/yjs`. On that host, keep Nginx on 80/443 and use the base Compose stack; do not start the Caddy
+overlay at the same time.
+
 Example Nginx configuration (WebSocket upgrades included):
 
 ```nginx
