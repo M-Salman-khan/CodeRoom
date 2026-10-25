@@ -31,8 +31,8 @@ FROM base AS client-build
 
 WORKDIR /app/client
 
-COPY client/package.json client/package-lock.json* ./
-RUN npm install --no-audit --no-fund
+COPY client/package.json client/package-lock.json ./
+RUN npm ci --no-audit --no-fund
 
 COPY client/ ./
 RUN npm run build
@@ -46,8 +46,8 @@ FROM base AS server-build
 
 WORKDIR /app/server
 
-COPY server/package.json server/package-lock.json* ./
-RUN npm install --no-audit --no-fund
+COPY server/package.json server/package-lock.json ./
+RUN npm ci --no-audit --no-fund
 
 COPY server/ ./
 RUN npm run build

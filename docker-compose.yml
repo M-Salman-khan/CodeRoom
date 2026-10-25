@@ -20,6 +20,10 @@ services:
     container_name: coderoom
     restart: unless-stopped
     stop_grace_period: 30s
+    # Reap compiler/runtime child processes started by the code runner.
+    init: true
+    security_opt:
+      - no-new-privileges:true
     depends_on:
       mongo:
         condition: service_healthy
@@ -29,7 +33,9 @@ services:
       - NODE_ENV=production
       - PORT=3000
       - HOST=0.0.0.0
-      - MONGODB_URI=mongodb://mongo:27017/coderoom
+      # Use the bundled MongoDB by default. Set MONGODB_URI in .env to point at
+      # Atlas or another MongoDB host, then remove/disable the mongo service.
+      - MONGODB_URI=${MONGODB_URI:-mongodb://mongo:27017/coderoom}
       # Required: generate with `openssl rand -base64 48`. The server refuses to
       # start in production with the public development fallback secret.
       - AUTH_SECRET=${AUTH_SECRET:?Set AUTH_SECRET in .env (openssl rand -base64 48)}
