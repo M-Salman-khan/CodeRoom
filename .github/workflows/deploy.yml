@@ -9,6 +9,7 @@ on:
       - 'docs/**'
       - '.vscode/**'
       - '.idea/**'
+  workflow_dispatch:
 
 # Prevent overlapping deployments; serialize runs safely without aborting in-flight deployments
 concurrency:
@@ -21,12 +22,13 @@ permissions:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}
+  NODE_VERSION: 22
 
 jobs:
   validate:
     name: Pre-flight Verification
     runs-on: ubuntu-latest
+    timeout-minutes: 20
 
     steps:
       - name: Checkout repository
@@ -35,7 +37,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: ${{ env.NODE_VERSION }}
           cache: npm
           cache-dependency-path: |
             client/package-lock.json
@@ -43,7 +45,7 @@ jobs:
 
       - name: Install client dependencies
         working-directory: client
-        run: npm install --no-audit --no-fund
+        run: npm ci --no-audit --no-fund
 
       - name: Typecheck & build client
         working-directory: client
@@ -51,28 +53,29 @@ jobs:
 
       - name: Install server dependencies
         working-directory: server
-        run: npm install --no-audit --no-fund
+        run: npm ci --no-audit --no-fund
 
       - name: Typecheck & build server
         working-directory: server
         run: npm run build
 
-      - name: Validate Docker Compose Configuration
+      - name: Validate base Docker Compose configuration
         run: docker compose config -q
         env:
           AUTH_SECRET: ci-placeholder-secret-at-least-32-characters-long
 
-      - name: Validate Production HTTPS Overlay
+      - name: Validate production Docker Compose overlay
         run: docker compose -f docker-compose.yml -f docker-compose.prod.yml config -q
         env:
           AUTH_SECRET: ci-placeholder-secret-at-least-32-characters-long
-          DOMAIN: coderoom.example.com
-          PUBLIC_BASE_URL: https://coderoom.example.com
+          DOMAIN: codingroom.duckdns.org
+          PUBLIC_BASE_URL: https://codingroom.duckdns.org
 
   build-and-push:
     name: Build & Push Docker Image
     needs: validate
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     outputs:
       short_sha: ${{ steps.vars.outputs.short_sha }}
       image_tag: ${{ steps.vars.outputs.image_tag }}
@@ -124,6 +127,7 @@ jobs:
     name: Deploy to VM
     needs: build-and-push
     runs-on: ubuntu-latest
+    timeout-minutes: 20
 
     steps:
       - name: Deploy to VM via SSH with Health Check & Rollback
@@ -145,6 +149,11 @@ jobs:
             echo "==> Navigating to project directory"
             cd ~/CodeRoom
 
+            if [ ! -f .env ]; then
+              echo "❌ Missing ~/CodeRoom/.env. Create it from .env.docker.example first."
+              exit 1
+            fi
+
             echo "==> Pulling latest repository configuration"
             git pull origin main
 
@@ -159,18 +168,18 @@ jobs:
             sudo IMAGE_TAG="$DEPLOY_TAG" docker compose pull coderoom
 
             echo "==> Updating containers (MongoDB data volume is preserved)"
-            sudo IMAGE_TAG="$DEPLOY_TAG" docker compose up -d --remove-orphans
+            sudo IMAGE_TAG="$DEPLOY_TAG" docker compose up -d --remove-orphans --no-build
 
-            echo "==> Waiting for container health check (up to 60s)..."
+            echo "==> Waiting for container health check (up to 120s)..."
             HEALTHY=false
-            for i in $(seq 1 12); do
+            for i in $(seq 1 24); do
               STATUS=$(sudo docker inspect --format='{{json .State.Health.Status}}' coderoom 2>/dev/null || echo '"unknown"')
               if [ "$STATUS" = '"healthy"' ]; then
-                echo "✅ Container is healthy (check $i/12)"
+                echo "✅ Container is healthy (check $i/24)"
                 HEALTHY=true
                 break
               fi
-              echo "⏳ Health status: $STATUS (check $i/12)... waiting 5s"
+              echo "⏳ Health status: $STATUS (check $i/24)... waiting 5s"
               sleep 5
             done
 
@@ -179,9 +188,9 @@ jobs:
               echo "==> Inspecting recent container logs:"
               sudo docker compose logs --tail=50 coderoom
 
-              if [ -n "$PREV_IMAGE" ]; then
+              if [ -n "${PREV_IMAGE:-}" ]; then
                 echo "⚠️ Initiating automated rollback to previous image: $PREV_IMAGE"
-                sudo IMAGE_TAG="$PREV_IMAGE" docker compose up -d coderoom
+                sudo IMAGE_TAG="$PREV_IMAGE" docker compose up -d --no-build coderoom
                 sleep 10
                 sudo docker compose ps
                 echo "⚠️ Rollback completed. Please inspect logs to diagnose failure."
@@ -192,18 +201,40 @@ jobs:
             fi
 
             echo "==> Verifying HTTP /api/health endpoint"
-            HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3000/api/health || true)
-            if [ "$HTTP_STATUS" != "200" ]; then
-              echo "❌ /api/health returned unexpected status code: $HTTP_STATUS"
+            HEALTH_JSON=$(curl -fsS http://localhost:3000/api/health || true)
+            echo "$HEALTH_JSON"
+            if ! echo "$HEALTH_JSON" | grep -Fq '"status":"healthy"'; then
+              echo "❌ /api/health did not report a healthy status."
               exit 1
             fi
-            echo "✅ /api/health endpoint responded with HTTP 200 OK"
+            echo "✅ /api/health endpoint responded with healthy status"
 
             echo "==> Verifying canonical public configuration"
             CONFIG_JSON=$(curl -fsS http://localhost:3000/api/config || true)
             echo "$CONFIG_JSON"
-            if echo "$CONFIG_JSON" | grep -q '"inviteLinksEnabled":false'; then
-              echo "⚠️ Invitation links are disabled. Set PUBLIC_BASE_URL to the public HTTPS origin in .env and redeploy."
+
+            EXPECTED_PUBLIC_URL=$(sed -n 's/^PUBLIC_BASE_URL=//p' .env | tail -n 1 | tr -d '"' | tr -d '\r')
+            EXPECTED_PUBLIC_URL="${EXPECTED_PUBLIC_URL%/}"
+
+            if ! echo "$CONFIG_JSON" | grep -Fq '"inviteLinksEnabled":true'; then
+              echo "❌ Invitation links are disabled. Set PUBLIC_BASE_URL to the public HTTPS origin in ~/CodeRoom/.env and redeploy."
+              exit 1
+            fi
+
+            if [ -n "$EXPECTED_PUBLIC_URL" ] && ! echo "$CONFIG_JSON" | grep -Fq "\"publicBaseUrl\":\"$EXPECTED_PUBLIC_URL\""; then
+              echo "❌ /api/config does not match PUBLIC_BASE_URL=$EXPECTED_PUBLIC_URL."
+              exit 1
+            fi
+
+            echo "✅ Canonical public configuration verified"
+
+            if [ -n "$EXPECTED_PUBLIC_URL" ]; then
+              echo "==> Checking public endpoint: $EXPECTED_PUBLIC_URL/api/health"
+              if curl -fsS --max-time 15 "$EXPECTED_PUBLIC_URL/api/health" >/dev/null; then
+                echo "✅ Public HTTPS endpoint is reachable"
+              else
+                echo "⚠️ Public endpoint check failed. Verify Nginx/TLS and that the domain proxies to 127.0.0.1:3000."
+              fi
             fi
 
             echo "==> Deployment successfully verified!"

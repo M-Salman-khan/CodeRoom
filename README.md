@@ -479,9 +479,15 @@ set `MONGODB_URI` in `.env` and remove or ignore the `mongo` service. If the hos
 Nginx/Caddy proxy on 80/443, skip the Caddy overlay and point the existing proxy at
 `127.0.0.1:3000`.
 
-If you use the included GitHub Actions deploy workflow, create/update `.env` on the VM
-(`~/CodeRoom/.env`) with `AUTH_SECRET`, `PUBLIC_BASE_URL`, `CLIENT_ORIGIN`, and `TRUST_PROXY=1`.
-The workflow prints `/api/config` after deployment and warns when invitation links are disabled.
+If you use the included GitHub Actions deploy workflow (`.github/workflows/deploy.yml`), create/update
+`.env` on the VM (`~/CodeRoom/.env`) with `AUTH_SECRET`, `PUBLIC_BASE_URL`, `CLIENT_ORIGIN`, and
+`TRUST_PROXY=1`. The workflow builds and pushes the image to GHCR, deploys the base Compose stack,
+and verifies `/api/health` plus `/api/config`. It fails when invitation links are disabled or the
+canonical URL does not match `PUBLIC_BASE_URL`, and it supports manual runs via `workflow_dispatch`.
+
+Configure these repository secrets for the deploy job: `VM_HOST`, `VM_USER`, `VM_SSH_KEY`, and
+optionally `VM_PORT` (defaults to `22`). The VM must have Docker Compose installed and the repository
+checked out at `~/CodeRoom` with its production `.env` file in place.
 
 ---
 
