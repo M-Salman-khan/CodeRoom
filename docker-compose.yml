@@ -30,8 +30,16 @@ services:
       - PORT=3000
       - HOST=0.0.0.0
       - MONGODB_URI=mongodb://mongo:27017/coderoom
-      - AUTH_SECRET=${AUTH_SECRET:-coderoom-lan-super-secret-key-at-least-32-chars-long}
+      # Required: generate with `openssl rand -base64 48`. The server refuses to
+      # start in production with the public development fallback secret.
+      - AUTH_SECRET=${AUTH_SECRET:?Set AUTH_SECRET in .env (openssl rand -base64 48)}
+      # Canonical public HTTPS origin used for invitation links. Example:
+      # https://coderoom.example.com — leave empty to disable invite links.
+      - PUBLIC_BASE_URL=${PUBLIC_BASE_URL:-}
       - CLIENT_ORIGIN=${CLIENT_ORIGIN:-http://localhost:3000}
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-}
+      # The app is only bound to 127.0.0.1 and must sit behind Caddy/Nginx.
+      - TRUST_PROXY=${TRUST_PROXY:-1}
       - SEED_DATABASE=${SEED_DATABASE:-false}
       - GEMINI_API_KEY=${GEMINI_API_KEY:-}
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
@@ -42,9 +50,9 @@ services:
       retries: 3
       start_period: 20s
 
-    # LAN Access Note:
-    # To expose CodeRoom directly on the host network (and auto-detect LAN IPs),
-    # uncomment network_mode and remove the `ports` block on Linux.
+    # The container port is intentionally bound to loopback only. Put Caddy or
+    # Nginx in front of it (see docker-compose.prod.yml and Caddyfile) so all
+    # traffic, including /ws and /yjs, is served over HTTPS/WSS.
 
 volumes:
   coderoom-mongo:

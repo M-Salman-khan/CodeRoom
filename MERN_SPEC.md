@@ -83,9 +83,11 @@ Never expose `AUTH_SECRET`, `passwordHash` or `yjsState` to the client.
      and sends `Authorization: Bearer <token>`.
 - Protected middleware accepts Bearer header **or** the cookie, verifies the JWT, confirms the
   user still exists in MongoDB, and exposes `req.user = { id, username }`.
-- WebSocket upgrades accept `?token=`, `Authorization` header, or the cookie.
+- WebSocket upgrades accept `?token=`, `Authorization` header, or the cookie. The upgrade is
+  rejected (`401`) before the socket is accepted unless the session is valid, and rejected (`403`)
+  unless the user is the room owner or has a membership record for the requested room.
 - Passwords: bcryptjs (10 rounds). Username validation: 3–30 chars, `[a-zA-Z0-9_-]+`.
-  Password: min 8 chars. Login is case-insensitive on username.
+  Password: 8–128 chars. Login is case-insensitive on username.
 
 ---
 
@@ -135,6 +137,30 @@ strings. Provide small serializer helpers rather than relying on ad-hoc transfor
 
 All routes are under `/api`. Errors use `{ "error": "message" }` with the listed status.
 Success responses are JSON. Protected routes return `401 { "error": "Unauthorized" }`.
+Room-scoped resources return `403 {error,code:"ROOM_MEMBERSHIP_REQUIRED"}` to non-members before
+reading room data. Only room lookup/join may create membership.
+
+### Runtime config
+
+`GET /api/config` (public) →
+
+```jsonc
+{
+  "environment": "production",
+  "publicBaseUrl": "https://coderoom.example.com", // or null
+  "publicBaseUrlSource": "PUBLIC_BASE_URL",        // or "CLIENT_ORIGIN" / null
+  "isPublicBaseUrl": true,
+  "inviteLinksEnabled": true,
+  "collaboration": {
+    "transport": "websocket", "yjs": true, "fallback": false,
+    "roomEventsPath": "/ws", "documentPath": "/yjs"
+  }
+}
+```
+
+`inviteLinksEnabled` is false unless `PUBLIC_BASE_URL` is a public HTTPS origin (or the explicit
+development-only private override is enabled). Room payloads expose the canonical `shareUrl` or
+`null`; clients must never derive invite links from `window.location.origin`.
 
 ### Auth
 
@@ -154,12 +180,12 @@ cookie max-age).
 
 | Method | Path | Notes |
 | --- | --- | --- |
-| GET | `/api/rooms` | Rooms where user is owner or member, newest `updatedAt` first. Response `{rooms:[{id,roomCode,name,description,isPublic,hasPassword,ownerId,owner:{id,username},createdAt,updatedAt,_count:{members,files}}]}` |
-| POST | `/api/rooms` | `{name,description?,password?,isPublic?}` → `201 {room}`. Generates unique 6-char code. Seeds members (OWNER) + two files: `main.ts` (typescript, welcome content) and `README.md` (markdown). |
+| GET | `/api/rooms` | Rooms where user is owner or member, newest `updatedAt` first. Response `{rooms:[{id,roomCode,name,description,isPublic,hasPassword,ownerId,owner:{id,username},createdAt,updatedAt,shareUrl,_count:{members,files}}]}` |
+| POST | `/api/rooms` | `{name,description?,password?,isPublic?}` → `201 {room}`. Name ≤80 chars, description ≤1000, password ≤128. Generates a unique cryptographically random 8-char code (existing 6-char codes remain valid). Seeds members (OWNER) + two files: `main.ts` (typescript, welcome content) and `README.md` (markdown). |
 | GET | `/api/rooms/:roomId` | Look up by **id or roomCode**. Returns the full room payload below, or `{requiresPassword:true, room:{id,roomCode,name,description,isPublic,hasPassword:true}}` when a non-member hits a password-protected room. Auto-joins the room as `MEMBER` when public / no password. |
 | PATCH | `/api/rooms/:roomId` | Owner only: `{name?,description?,isPublic?,password?}` (`password:""` clears). → `{success,room}` |
 | DELETE | `/api/rooms/:roomId` | Owner only → `{success,message}` |
-| POST | `/api/rooms/:roomId/join` | `{password?}` → `{success,roomId,roomCode}`; `403 {error,requiresPassword:true}` |
+| POST | `/api/rooms/:roomId/join` | `{password?}` → `{success,roomId,roomCode}`; `403 {error,requiresPassword:true}`. Join attempts are rate-limited. |
 
 `GET /api/rooms/:roomId` room payload:
 
@@ -172,7 +198,8 @@ cookie max-age).
     "members": [{ "id": "...", "userId": "...", "username": "...", "role": "OWNER",
                   "canEdit": true, "allowedFiles": [], "joinedAt": "ISO" }],
     "pendingRequests": [{ "id","userId","username","fileId","fileName","createdAt" }],
-    "createdAt": "ISO", "updatedAt": "ISO"
+    "createdAt": "ISO", "updatedAt": "ISO",
+    "shareUrl": "https://coderoom.example.com/room/ABC123" // or null
   },
   "isOwner": true,
   "userRole": "OWNER" | "EDITOR" | "MEMBER",
@@ -182,18 +209,19 @@ cookie max-age).
 }
 ```
 
-`pendingRequests` is owner-only (empty array for everyone else).
+`pendingRequests` is owner-only (empty array for everyone else). `shareUrl` is generated on the
+server from `PUBLIC_BASE_URL` and is `null` when invite links are disabled.
 
 ### Files
 
 | Method | Path | Notes |
 | --- | --- | --- |
-| GET | `/api/rooms/:roomId/files` | `{files:[...]}` sorted folders first then name asc. Ids in order stable. |
-| POST | `/api/rooms/:roomId/files` | `{name,type?="file",parentId?=null,content?=""}` → `201 {file}`. Requires room-wide edit permission. Reject duplicate name in same parent with `409`. Build initial Yjs state (`Y.Doc`, text key `monaco`) for files. |
-| GET | `/api/rooms/:roomId/files/:fileId` | `{file}` |
-| PATCH | `/api/rooms/:roomId/files/:fileId` | `{name?,content?,language?,parentId?}` → `{file}`. Requires edit permission on that file. `content` updates also rebuild `yjsState`. Prevent moving into itself / own descendant, validate destination folder, duplicate names. |
-| DELETE | `/api/rooms/:roomId/files/:fileId` | Requires edit permission → `{success,message}` |
-| POST | `/api/rooms/:roomId/files/:fileId/duplicate` | `{targetParentId?}` → duplicate file or recursive folder copy, unique names (`x copy`, `x copy 2`). Response `{files:[...]}` (all created). |
+| GET | `/api/rooms/:roomId/files` | Requires membership. `{files:[...]}` sorted folders first then name asc. Ids in order stable. |
+| POST | `/api/rooms/:roomId/files` | `{name,type?="file",parentId?=null,content?=""}` → `201 {file}`. Requires membership + room-wide edit permission. Names ≤120 chars, no `/`, `\`, or control characters. Content ≤1,000,000 UTF-8 bytes (`413`). Reject duplicate name in same parent with `409`. Build initial Yjs state (`Y.Doc`, text key `monaco`) for files. |
+| GET | `/api/rooms/:roomId/files/:fileId` | Requires membership → `{file}` |
+| PATCH | `/api/rooms/:roomId/files/:fileId` | Requires membership + edit permission on that file. `{name?,content?,language?,parentId?}` → `{file}`. Same name/size validation; `content` updates also rebuild `yjsState`. Prevent moving into itself / own descendant, validate destination folder, duplicate names. |
+| DELETE | `/api/rooms/:roomId/files/:fileId` | Requires membership + edit permission → `{success,message}` |
+| POST | `/api/rooms/:roomId/files/:fileId/duplicate` | Requires membership + edit permission. `{targetParentId?}` → duplicate file or recursive folder copy, unique names (`x copy`, `x copy 2`). Response `{files:[...]}` (all created). |
 
 File JSON: `{id,roomId,parentId,name,type,language,content,createdAt,updatedAt}`.
 
@@ -201,9 +229,9 @@ File JSON: `{id,roomId,parentId,name,type,language,content,createdAt,updatedAt}`
 
 | Method | Path | Notes |
 | --- | --- | --- |
-| GET | `/api/rooms/:roomId/messages?limit=50` | newest `limit` (max 100), returned oldest→newest. `{messages:[{id,roomId,userId,username,content,createdAt}]}` |
-| POST | `/api/rooms/:roomId/messages` | `{content}` non-empty → `201 {message}` and broadcast `chat:message` |
-| DELETE | `/api/rooms/:roomId/messages` | clear all → `{success,message}` + broadcast `chat:clear` |
+| GET | `/api/rooms/:roomId/messages?limit=50` | Requires membership. newest `limit` (max 100), returned oldest→newest. `{messages:[{id,roomId,userId,username,content,createdAt}]}` |
+| POST | `/api/rooms/:roomId/messages` | Requires membership. `{content}` non-empty, ≤2,000 chars → `201 {message}` and broadcast `chat:message` |
+| DELETE | `/api/rooms/:roomId/messages` | Owner only: clear all → `{success,message}` + broadcast `chat:clear` |
 
 ### Permissions
 
@@ -251,22 +279,30 @@ return the heuristic result (never 500 just because a key is missing).
 | Method | Path | Notes |
 | --- | --- | --- |
 | GET | `/api/compile/languages` | `{success,languages,total}` |
-| POST | `/api/compile` | `{code,language,stdin?,filename?,preferEngine?="auto",timeoutMs?=10000}` → `{success,result,language}`. Clamp timeout to 1–20s. |
+| POST | `/api/compile` | Requires authentication + execution rate limit. `{code,language,stdin?,filename?,preferEngine?="auto",timeoutMs?=10000}` → `{success,result,language}`. Clamp timeout to 1-20s. |
 
 ### Health
 
 `GET /api/health` → `200 {status:"healthy",timestamp,uptime,database:"connected"}` when Mongo is
 connected, otherwise `503` with `status:"unhealthy"`, `database:"disconnected"`, `error`.
+`GET /api/config` is public and described in §5.
+
+The API applies CORS allowlisting, `express-rate-limit` (API, auth, join, create, writes, chat,
+permissions, run, AI), `express.json({limit:"2mb"})`, security headers, and HSTS on secure
+requests.
 
 ---
 
 ## 6. WebSocket contract
 
-One `WebSocketServer({ noServer:true })` sharing the HTTP server, routed on `upgrade`.
+One `WebSocketServer({ noServer:true, maxPayload: 2MB })` sharing the HTTP server, routed on `upgrade`.
 
 ### `/ws?roomId=<roomId>` — room events
 
-Auth from query/header/cookie. Server keeps `Map<roomId, Set<client>>`.
+Auth from query/header/cookie. The upgrade is rejected with `401` without a valid session and `403`
+unless the user is the room owner/member; room codes are resolved to canonical ids. In production,
+cross-origin browser upgrades are rejected against the same exact allowlist used for CORS (plus
+same-host requests). Server keeps `Map<roomId, Set<client>>`.
 
 Server → client messages (JSON):
 
@@ -292,12 +328,15 @@ Client → server messages: `{type, payload}` for
 `chat:clear`, `file:create|rename|delete|update`, `room:update`, `code:run`,
 `permission:request|grant|decline|revoke|cancel`.
 
-Only the owner may grant/decline/revoke. Persist every write to MongoDB before broadcasting.
+Only the owner may grant/decline/revoke or clear chat. Persist every write to MongoDB before
+broadcasting. Chat frames are capped at 2,000 characters and 20 messages/10s per socket.
 Ping/pong keep-alive every 30s; terminate dead sockets; recompute presence on close.
 
 ### `/yjs/<roomId>__<fileId>` — CRDT documents
 
-Use `y-websocket` on the client (`new WebsocketProvider(wsUrl, `${roomId}__${fileId}`, ydoc, { params:{token} })`).
+The upgrade is rejected unless the user is the room owner/member; the room key may be an id or
+code and is rewritten to the canonical id. Non-members cannot read the document. Use
+`y-websocket` on the client (`new WebsocketProvider(wsUrl, `${roomId}__${fileId}`, ydoc, { params:{token} })`).
 Implement the same protocol as `src/server/yjs-handler.ts`: message types 0 (sync), 1 (awareness),
 3 (query awareness); `Y.Doc` text key `monaco`; seed from `file.yjsState` or `file.content`;
 broadcast updates; debounce persistence of `{content, yjsState}` by 2s; flush on last disconnect,
@@ -311,25 +350,30 @@ works through the Vite proxy in dev and Express in production.
 
 ## 7. Server implementation notes
 
-- Express 4, `cors` with `credentials:true` and `origin: CLIENT_ORIGIN` (plus allow same-origin).
-- `cookie-parser`, `express.json({ limit: "2mb" })`.
+- Express 4, `cors` with `credentials:true` and an exact production allowlist built from
+  `PUBLIC_BASE_URL`, `CLIENT_ORIGIN`, and `ALLOWED_ORIGINS`. Development allows LAN origins.
+- `app.set("trust proxy", TRUST_PROXY)` (0 direct, 1 behind Caddy/Nginx).
+- `cookie-parser`, `express.json({ limit: "2mb" })`, `express-rate-limit`, security headers and HSTS.
+- Session cookies are `httpOnly`, `SameSite=Lax`, and `Secure` in production over HTTPS.
 - Static: `express.static(clientDist)` + SPA fallback (`app.get("*")` excluding `/api`, `/ws`, `/yjs`).
 - TypeScript in strict mode, CommonJS output (`tsconfig`: target ES2022, module commonjs,
   moduleResolution node, outDir dist, rootDir src, esModuleInterop true).
 - Scripts: `dev: tsx watch src/index.ts`, `build: tsc -p tsconfig.json`,
   `start: node dist/index.js`, `typecheck: tsc --noEmit`, `seed: tsx src/seed.ts`.
-- Dependencies: express, mongoose, bcryptjs, jose, cookie-parser, cors, ws, yjs, y-protocols,
-  lib0, dotenv. Dev: typescript, tsx, @types/express, @types/node, @types/ws, @types/cookie-parser,
-  @types/cors, @types/bcryptjs.
+- Dependencies: express, mongoose, bcryptjs, jose, cookie-parser, cors, express-rate-limit, ws,
+  yjs, y-protocols, lib0, dotenv. Dev: typescript, tsx, @types/express, @types/node, @types/ws,
+  @types/cookie-parser, @types/cors, @types/bcryptjs.
 - Reuse (copy, then fix imports) from the legacy tree:
   - `src/lib/compiler.ts` → `server/src/services/compiler.ts` (774 lines, self-contained Node code)
   - `src/server/code-runner.ts` → `server/src/services/code-runner.ts` (update `@/lib/compiler`)
   - `src/server/ai-service.ts` → `server/src/services/ai-service.ts`
   - `src/server/yjs-handler.ts` → `server/src/ws/yjs-handler.ts` (Mongoose instead of Prisma)
   - `src/server/room-handler.ts` → `server/src/ws/room-handler.ts` (Mongoose instead of Prisma)
-  - `src/lib/utils.ts` → `server/src/lib/utils.ts` (`generateRoomCode`, `getLanguageFromFilename`)
-- Startup: connect Mongo, log LAN URLs like the old server, start HTTP + WS, add graceful
-  SIGTERM/SIGINT shutdown that flushes Yjs docs and closes Mongo.
+  - `src/lib/utils.ts` → `server/src/lib/utils.ts` (`generateRoomCode` via `crypto.randomInt`,
+  `getLanguageFromFilename`)
+- Startup: validate production env, connect Mongo, log the local/public origins, start HTTP + WS,
+  add graceful SIGTERM/SIGINT shutdown that flushes Yjs docs and closes Mongo. Do not advertise
+  LAN-only URLs in production.
 - Seed (`npm run seed`): users `demo` / `collaborator` (password `password123`) and room
   `DEMO01` "Getting Started with CodeRoom" with the same nested `src/index.ts`, `src/utils.ts`,
   `README.md`, plus two welcome chat messages. Make seed idempotent (drop/replace demo data).

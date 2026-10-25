@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { toast } from "sonner";
 import {
   ArrowRight,
   Check,
@@ -32,12 +33,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Sheet,
   SheetContent,
@@ -56,6 +52,8 @@ interface RoomItem {
   owner: { id: string; username: string };
   createdAt: string;
   updatedAt: string;
+  /** Canonical HTTPS invite URL from the server, or null when disabled. */
+  shareUrl?: string | null;
   _count?: {
     members: number;
     files: number;
@@ -69,7 +67,7 @@ export default function DashboardPage() {
   const [searchParams] = useSearchParams();
 
   const [user, setUser] = useState<{ id: string; username: string } | null>(
-    null
+    null,
   );
   const [rooms, setRooms] = useState<RoomItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -156,12 +154,17 @@ export default function DashboardPage() {
     setTimeout(() => setCopiedCode(null), 2000);
   };
 
-  const copyInviteLink = (e: React.MouseEvent, code: string) => {
+  const copyInviteLink = (e: React.MouseEvent, room: RoomItem) => {
     e.preventDefault();
     e.stopPropagation();
-    const url = `${window.location.origin}/room/${code}`;
-    navigator.clipboard.writeText(url);
-    setCopiedLink(code);
+    if (!room.shareUrl) {
+      toast.warning(
+        "Invite links are disabled. Set PUBLIC_BASE_URL to this server's public HTTPS domain.",
+      );
+      return;
+    }
+    void navigator.clipboard.writeText(room.shareUrl);
+    setCopiedLink(room.roomCode);
     setTimeout(() => setCopiedLink(null), 2000);
   };
 
@@ -485,7 +488,8 @@ export default function DashboardPage() {
               Real-time Multi-User IDE
             </Badge>
             <h1 className="text-xl font-bold tracking-tight sm:text-2xl md:text-3xl">
-              Welcome back, <span className="text-accent">{user?.username}</span>
+              Welcome back,{" "}
+              <span className="text-accent">{user?.username}</span>
             </h1>
             <p className="mt-1 text-xs text-muted-foreground sm:text-sm">
               Collaborate in real time, run code with single-runner mutex, and
@@ -544,7 +548,9 @@ export default function DashboardPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="p-4 pt-0">
-                <div className={cn("text-xl font-bold sm:text-2xl", stat.color)}>
+                <div
+                  className={cn("text-xl font-bold sm:text-2xl", stat.color)}
+                >
                   {stat.value}
                 </div>
               </CardContent>
@@ -633,13 +639,14 @@ export default function DashboardPage() {
                     key={room.id}
                     onClick={(e) => {
                       const target = e.target as HTMLElement;
-                      if (target.closest("button") || target.closest("a")) return;
+                      if (target.closest("button") || target.closest("a"))
+                        return;
                       setEnteringRoomCode(room.roomCode);
                       navigate(`/room/${room.roomCode}`);
                     }}
                     className={cn(
                       "glass-card glass-card-hover group relative flex cursor-pointer flex-col justify-between overflow-hidden p-5 transition-all",
-                      isEntering && "opacity-90 ring-2 ring-accent"
+                      isEntering && "opacity-90 ring-2 ring-accent",
                     )}
                   >
                     <div>
@@ -672,7 +679,7 @@ export default function DashboardPage() {
                             type="button"
                             variant="outline"
                             size="icon-sm"
-                            onClick={(e) => copyInviteLink(e, room.roomCode)}
+                            onClick={(e) => copyInviteLink(e, room)}
                             title="Copy invite link"
                             aria-label={`Copy invite link for ${room.name}`}
                             className="h-7 w-7 bg-secondary/50"
@@ -732,7 +739,9 @@ export default function DashboardPage() {
                           title={`Created: ${formatDate(room.createdAt)}`}
                         >
                           <Clock className="h-3.5 w-3.5" />
-                          <span>Active {formatRelativeTime(room.updatedAt)}</span>
+                          <span>
+                            Active {formatRelativeTime(room.updatedAt)}
+                          </span>
                         </div>
                       </div>
 
@@ -741,7 +750,7 @@ export default function DashboardPage() {
                         variant="secondary"
                         className={cn(
                           "w-full group-hover:border-accent/40 group-hover:bg-accent group-hover:text-primary-foreground",
-                          isEntering && "pointer-events-none opacity-80"
+                          isEntering && "pointer-events-none opacity-80",
                         )}
                       >
                         <Link
@@ -783,10 +792,7 @@ export default function DashboardPage() {
         }}
       />
 
-      <JoinRoomModal
-        isOpen={isJoinOpen}
-        onClose={() => setIsJoinOpen(false)}
-      />
+      <JoinRoomModal isOpen={isJoinOpen} onClose={() => setIsJoinOpen(false)} />
     </div>
   );
 }

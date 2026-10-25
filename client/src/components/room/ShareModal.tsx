@@ -1,5 +1,13 @@
-import { useState, useEffect } from "react";
-import { Copy, Check, Share2, Wifi, Link2, Hash } from "lucide-react";
+import { useEffect, useState } from "react";
+import {
+  AlertTriangle,
+  Check,
+  Copy,
+  Hash,
+  Link2,
+  Share2,
+  ShieldCheck,
+} from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,12 +19,15 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { buildInviteUrl, getAppConfig, type AppConfig } from "@/lib/app-config";
 
 interface ShareModalProps {
   isOpen: boolean;
   onClose: () => void;
   roomCode: string;
   roomName: string;
+  /** Canonical URL supplied by the server (preferred over client config). */
+  shareUrl?: string | null;
 }
 
 export default function ShareModal({
@@ -24,27 +35,35 @@ export default function ShareModal({
   onClose,
   roomCode,
   roomName,
+  shareUrl,
 }: ShareModalProps) {
   const [copiedCode, setCopiedCode] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
-  const [origin, setOrigin] = useState("");
+  const [config, setConfig] = useState<AppConfig | null>(null);
 
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      setOrigin(window.location.origin);
-    }
-  }, []);
+    if (!isOpen) return;
+    let active = true;
+    void getAppConfig().then((next) => {
+      if (active) setConfig(next);
+    });
+    return () => {
+      active = false;
+    };
+  }, [isOpen]);
 
-  const inviteUrl = `${origin}/room/${roomCode}`;
+  const canonicalUrl = shareUrl ?? buildInviteUrl(config, roomCode) ?? "";
+  const linkReady = Boolean(canonicalUrl);
 
   const copyCode = () => {
-    navigator.clipboard.writeText(roomCode);
+    void navigator.clipboard.writeText(roomCode);
     setCopiedCode(true);
     setTimeout(() => setCopiedCode(false), 2000);
   };
 
   const copyLink = () => {
-    navigator.clipboard.writeText(inviteUrl);
+    if (!canonicalUrl) return;
+    void navigator.clipboard.writeText(canonicalUrl);
     setCopiedLink(true);
     setTimeout(() => setCopiedLink(false), 2000);
   };
@@ -97,17 +116,26 @@ export default function ShareModal({
           <div className="space-y-2">
             <Label>Invite Link</Label>
             <div className="flex items-center gap-2">
-              <div className="relative flex-1 group">
+              <div className="group relative flex-1">
                 <Link2 className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground transition-colors group-focus-within:text-accent" />
                 <Input
                   type="text"
                   readOnly
-                  value={inviteUrl}
+                  value={linkReady ? canonicalUrl : ""}
+                  placeholder={
+                    config
+                      ? "Invite links are not configured"
+                      : "Loading server configuration..."
+                  }
                   onClick={(e) => (e.target as HTMLInputElement).select()}
                   className="select-all truncate pl-9 font-mono text-xs"
                 />
               </div>
-              <Button onClick={copyLink} className="shrink-0">
+              <Button
+                onClick={copyLink}
+                disabled={!linkReady}
+                className="shrink-0"
+              >
                 {copiedLink ? (
                   <>
                     <Check className="h-3.5 w-3.5" />
@@ -121,17 +149,31 @@ export default function ShareModal({
                 )}
               </Button>
             </div>
+
+            {config && !linkReady && (
+              <div className="flex items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 p-2.5 text-[11px] leading-relaxed text-amber-700 dark:text-amber-200">
+                <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                <p>
+                  Invite links are disabled because this server has no public
+                  HTTPS <code>PUBLIC_BASE_URL</code>. Share the room code
+                  instead, or ask the administrator to configure the public
+                  domain.
+                </p>
+              </div>
+            )}
           </div>
 
           <div className="flex items-start gap-2.5 rounded-xl border border-border bg-secondary/40 p-4 text-xs leading-relaxed text-muted-foreground">
-            <Wifi className="mt-0.5 h-4 w-4 shrink-0 text-emerald-400" />
+            <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-emerald-400" />
             <div>
               <p className="mb-1 font-medium text-foreground">
-                LAN + Internet Collaboration
+                Internet-hosted collaboration
               </p>
               <p>
-                Users on the same local network or connected remotely can join
-                using this link or room code.
+                Everyone you invite needs a browser and outbound HTTPS access to
+                this CodeRoom domain. No software installation or LAN access is
+                required. Live editing uses secure WebSockets ({`wss://`}) and
+                there is no polling fallback.
               </p>
             </div>
           </div>

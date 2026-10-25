@@ -1,0 +1,43 @@
+# Production overlay: Caddy terminates HTTPS/WSS in front of the CodeRoom app.
+#
+# Usage:
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+#
+# Required in .env on the host:
+#   DOMAIN=coderoom.example.com
+#   PUBLIC_BASE_URL=https://coderoom.example.com
+#   AUTH_SECRET=<openssl rand -base64 48>
+#
+# If the host already runs Nginx/Caddy on ports 80/443, do NOT start the caddy
+# service. Keep using that proxy and set PUBLIC_BASE_URL/TRUST_PROXY=1 instead.
+
+services:
+  coderoom:
+    environment:
+      - PUBLIC_BASE_URL=${PUBLIC_BASE_URL:?Set PUBLIC_BASE_URL to the public HTTPS origin}
+      - CLIENT_ORIGIN=${PUBLIC_BASE_URL}
+      - TRUST_PROXY=1
+
+  caddy:
+    image: caddy:2.8-alpine
+    container_name: coderoom-caddy
+    restart: unless-stopped
+    depends_on:
+      coderoom:
+        condition: service_healthy
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      - DOMAIN=${DOMAIN:?Set DOMAIN to the public hostname without https://}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - coderoom-caddy-data:/data
+      - coderoom-caddy-config:/config
+
+volumes:
+  coderoom-caddy-data:
+    name: coderoom-caddy-data
+  coderoom-caddy-config:
+    name: coderoom-caddy-config

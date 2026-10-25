@@ -12,6 +12,7 @@ import { clearSessionCookie, setSessionCookie } from "../lib/cookies";
 import { asyncHandler } from "../lib/http";
 import { serializeUser } from "../lib/serializers";
 import { escapeRegExp } from "../lib/utils";
+import { authLimiter } from "../middleware/rate-limit";
 import { extractRequestToken, resolveRequestUser } from "../middleware/auth";
 import { User } from "../models/user";
 
@@ -23,9 +24,11 @@ function usernameFilter(username: string): Record<string, unknown> {
 
 router.post(
   "/register",
+  authLimiter,
   asyncHandler(async (req, res) => {
     const body = req.body || {};
-    const username = typeof body.username === "string" ? body.username.trim() : "";
+    const username =
+      typeof body.username === "string" ? body.username.trim() : "";
     const password = typeof body.password === "string" ? body.password : "";
     const confirmPassword =
       typeof body.confirmPassword === "string" ? body.confirmPassword : "";
@@ -47,7 +50,9 @@ router.post(
       return;
     }
 
-    const existing = await User.findOne(usernameFilter(username)).select("_id").exec();
+    const existing = await User.findOne(usernameFilter(username))
+      .select("_id")
+      .exec();
     if (existing) {
       res.status(409).json({ error: "Username already taken" });
       return;
@@ -56,7 +61,10 @@ router.post(
     const passwordHash = await hashPassword(password);
     const user = await User.create({ username, passwordHash });
 
-    const token = await createSessionToken({ id: user._id, username: user.username });
+    const token = await createSessionToken({
+      id: user._id,
+      username: user.username,
+    });
     setSessionCookie(res, req, token, cookieMaxAge(false));
 
     res.status(201).json({
@@ -64,19 +72,27 @@ router.post(
       user: serializeUser(user),
       token,
     });
-  })
+  }),
 );
 
 router.post(
   "/login",
+  authLimiter,
   asyncHandler(async (req, res) => {
     const body = req.body || {};
-    const username = typeof body.username === "string" ? body.username.trim() : "";
+    const username =
+      typeof body.username === "string" ? body.username.trim() : "";
     const password = typeof body.password === "string" ? body.password : "";
     const rememberMe = Boolean(body.rememberMe);
 
     if (!username || !password) {
       res.status(400).json({ error: "Username and password are required" });
+      return;
+    }
+    if (password.length > 128) {
+      res
+        .status(400)
+        .json({ error: "Password must be 128 characters or fewer" });
       return;
     }
 
@@ -94,7 +110,7 @@ router.post(
 
     const token = await createSessionToken(
       { id: user._id, username: user.username },
-      rememberMe
+      rememberMe,
     );
     setSessionCookie(res, req, token, cookieMaxAge(rememberMe));
 
@@ -103,7 +119,7 @@ router.post(
       user: serializeUser(user),
       token,
     });
-  })
+  }),
 );
 
 router.get(
@@ -121,7 +137,7 @@ router.get(
     }
 
     res.json({ user, token });
-  })
+  }),
 );
 
 router.post(
@@ -129,7 +145,7 @@ router.post(
   asyncHandler(async (req, res) => {
     clearSessionCookie(res, req);
     res.json({ success: true, message: "Logged out" });
-  })
+  }),
 );
 
 // Exposed for tests/diagnostics without leaking anything sensitive.

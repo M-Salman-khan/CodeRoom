@@ -30,7 +30,9 @@ import {
   X,
 } from "lucide-react";
 
-import RoomHeader, { type ConnectionStatus } from "@/components/room/RoomHeader";
+import RoomHeader, {
+  type ConnectionStatus,
+} from "@/components/room/RoomHeader";
 import FileExplorer, { type FileItem } from "@/components/room/FileExplorer";
 import CodeEditor, {
   type ExecutionResult,
@@ -100,6 +102,8 @@ interface RoomData {
   owner: { id: string; username: string };
   members: RoomMember[];
   pendingRequests?: PermissionRequestItem[];
+  /** Canonical invite URL supplied by the server; null when disabled. */
+  shareUrl?: string | null;
 }
 
 interface MyPendingRequest {
@@ -193,7 +197,9 @@ export default function RoomPage() {
   const loginRedirect = `/login?redirect=${encodeURIComponent(roomPath)}`;
 
   // Identity / room ---------------------------------------------------------
-  const [user, setUser] = useState<{ id: string; username: string } | null>(null);
+  const [user, setUser] = useState<{ id: string; username: string } | null>(
+    null,
+  );
   const [room, setRoom] = useState<RoomData | null>(null);
   const [isOwner, setIsOwner] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -203,8 +209,12 @@ export default function RoomPage() {
   // Permissions -------------------------------------------------------------
   const [canEdit, setCanEdit] = useState(false);
   const [allowedFiles, setAllowedFiles] = useState<string[]>([]);
-  const [pendingRequests, setPendingRequests] = useState<PermissionRequestItem[]>([]);
-  const [myPendingRequests, setMyPendingRequests] = useState<MyPendingRequest[]>([]);
+  const [pendingRequests, setPendingRequests] = useState<
+    PermissionRequestItem[]
+  >([]);
+  const [myPendingRequests, setMyPendingRequests] = useState<
+    MyPendingRequest[]
+  >([]);
   const [isPermissionsOpen, setIsPermissionsOpen] = useState(false);
   const [permissionToast, setPermissionToast] = useState<{
     id: string;
@@ -214,8 +224,10 @@ export default function RoomPage() {
   } | null>(null);
 
   // Execution ---------------------------------------------------------------
-  const [executionState, setExecutionState] = useState<ExecutionState>(EMPTY_EXECUTION);
-  const [executionResult, setExecutionResult] = useState<ExecutionResult | null>(null);
+  const [executionState, setExecutionState] =
+    useState<ExecutionState>(EMPTY_EXECUTION);
+  const [executionResult, setExecutionResult] =
+    useState<ExecutionResult | null>(null);
 
   // Password gate -----------------------------------------------------------
   const [requiresPassword, setRequiresPassword] = useState(false);
@@ -234,9 +246,13 @@ export default function RoomPage() {
   const [unreadChat, setUnreadChat] = useState(0);
 
   // Realtime ----------------------------------------------------------------
-  const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>("reconnecting");
+  const [connectionStatus, setConnectionStatus] =
+    useState<ConnectionStatus>("reconnecting");
   const [connectionNonce, setConnectionNonce] = useState(0);
-  const [onlineUsers, setOnlineUsers] = useState<Array<{ id: string; username: string }>>([]);
+  const [wsFailureCount, setWsFailureCount] = useState(0);
+  const [onlineUsers, setOnlineUsers] = useState<
+    Array<{ id: string; username: string }>
+  >([]);
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("saved");
   const [cursorPos, setCursorPos] = useState({ line: 1, column: 1 });
 
@@ -246,7 +262,8 @@ export default function RoomPage() {
   const [isShortcutsOpen, setIsShortcutsOpen] = useState(false);
   const [isNewFileOpen, setIsNewFileOpen] = useState(false);
   const [newFileName, setNewFileName] = useState("");
-  const [runNotification, setRunNotification] = useState<RunNotification | null>(null);
+  const [runNotification, setRunNotification] =
+    useState<RunNotification | null>(null);
 
   // Layout ------------------------------------------------------------------
   const [leftPanelOpen, setLeftPanelOpen] = useState(true);
@@ -260,8 +277,10 @@ export default function RoomPage() {
   const [isMobile, setIsMobile] = useState(false);
 
   const activeFile = useMemo(
-    () => files.find((file) => file.id === activeFileId && file.type === "file") ?? null,
-    [files, activeFileId]
+    () =>
+      files.find((file) => file.id === activeFileId && file.type === "file") ??
+      null,
+    [files, activeFileId],
   );
 
   const roomMembers = useMemo(
@@ -275,7 +294,7 @@ export default function RoomPage() {
         allowedFiles: member.allowedFiles ?? [],
         joinedAt: member.joinedAt ?? "",
       })),
-    [room?.members]
+    [room?.members],
   );
 
   // Refs --------------------------------------------------------------------
@@ -309,12 +328,26 @@ export default function RoomPage() {
   // Restore panel widths ----------------------------------------------------
   useEffect(() => {
     try {
-      const storedLeft = Number.parseInt(localStorage.getItem("coderoom_left_width") ?? "", 10);
-      if (Number.isFinite(storedLeft) && storedLeft >= LEFT_MIN && storedLeft <= LEFT_MAX) {
+      const storedLeft = Number.parseInt(
+        localStorage.getItem("coderoom_left_width") ?? "",
+        10,
+      );
+      if (
+        Number.isFinite(storedLeft) &&
+        storedLeft >= LEFT_MIN &&
+        storedLeft <= LEFT_MAX
+      ) {
         setLeftWidth(storedLeft);
       }
-      const storedRight = Number.parseInt(localStorage.getItem("coderoom_right_width") ?? "", 10);
-      if (Number.isFinite(storedRight) && storedRight >= RIGHT_MIN && storedRight <= RIGHT_MAX) {
+      const storedRight = Number.parseInt(
+        localStorage.getItem("coderoom_right_width") ?? "",
+        10,
+      );
+      if (
+        Number.isFinite(storedRight) &&
+        storedRight >= RIGHT_MIN &&
+        storedRight <= RIGHT_MAX
+      ) {
         setRightWidth(storedRight);
       }
     } catch {
@@ -355,7 +388,7 @@ export default function RoomPage() {
         return false;
       }
     },
-    []
+    [],
   );
 
   const flushQueuedChat = useCallback(() => {
@@ -367,7 +400,12 @@ export default function RoomPage() {
     queuedChatRef.current = [];
 
     queued.forEach((item) => {
-      if (!sendWsEvent("chat:send", { content: item.content, clientId: item.clientId })) {
+      if (
+        !sendWsEvent("chat:send", {
+          content: item.content,
+          clientId: item.clientId,
+        })
+      ) {
         queuedChatRef.current.push(item);
       }
     });
@@ -379,18 +417,15 @@ export default function RoomPage() {
   // Data loading
   // =========================================================================
 
-  const mergeLoadedMessages = useCallback(
-    (loaded: ChatMessage[]) => {
-      setMessages((prev) => {
-        const loadedIds = new Set(loaded.map((message) => message.id));
-        const stillPending = prev.filter(
-          (message) => message.pending && !loadedIds.has(message.id)
-        );
-        return [...loaded, ...stillPending];
-      });
-    },
-    []
-  );
+  const mergeLoadedMessages = useCallback((loaded: ChatMessage[]) => {
+    setMessages((prev) => {
+      const loadedIds = new Set(loaded.map((message) => message.id));
+      const stillPending = prev.filter(
+        (message) => message.pending && !loadedIds.has(message.id),
+      );
+      return [...loaded, ...stillPending];
+    });
+  }, []);
 
   const fetchRoomData = useCallback(async (): Promise<void> => {
     if (!roomIdParam) {
@@ -446,10 +481,13 @@ export default function RoomPage() {
         };
         const loadedFiles = filesData.files ?? [];
         setFiles(loadedFiles);
-        const firstFile = loadedFiles.find((file) => file.type === "file") ?? null;
+        const firstFile =
+          loadedFiles.find((file) => file.type === "file") ?? null;
         setOpenFiles((prev) => {
           const refreshed = prev
-            .map((file) => loadedFiles.find((candidate) => candidate.id === file.id))
+            .map((file) =>
+              loadedFiles.find((candidate) => candidate.id === file.id),
+            )
             .filter((file): file is FileItem => Boolean(file));
           if (refreshed.length > 0) return refreshed;
           return firstFile ? [firstFile] : [];
@@ -576,7 +614,7 @@ export default function RoomPage() {
           (message) =>
             message.pending &&
             message.userId === incoming.userId &&
-            message.content === incoming.content
+            message.content === incoming.content,
         );
         if (pendingIndex >= 0) {
           const next = [...prev];
@@ -601,7 +639,8 @@ export default function RoomPage() {
 
         switch (data.type) {
           case "presence:update": {
-            if (Array.isArray(data.onlineUsers)) setOnlineUsers(data.onlineUsers);
+            if (Array.isArray(data.onlineUsers))
+              setOnlineUsers(data.onlineUsers);
             if (data.execution) setExecutionState(data.execution);
             break;
           }
@@ -623,7 +662,9 @@ export default function RoomPage() {
             if (data.file) {
               const created = data.file;
               setFiles((prev) =>
-                prev.some((file) => file.id === created.id) ? prev : [...prev, created]
+                prev.some((file) => file.id === created.id)
+                  ? prev
+                  : [...prev, created],
               );
             }
             break;
@@ -634,10 +675,14 @@ export default function RoomPage() {
             if (data.file) {
               const updated = data.file;
               setFiles((prev) =>
-                prev.map((file) => (file.id === updated.id ? { ...file, ...updated } : file))
+                prev.map((file) =>
+                  file.id === updated.id ? { ...file, ...updated } : file,
+                ),
               );
               setOpenFiles((prev) =>
-                prev.map((file) => (file.id === updated.id ? { ...file, ...updated } : file))
+                prev.map((file) =>
+                  file.id === updated.id ? { ...file, ...updated } : file,
+                ),
               );
             }
             break;
@@ -647,7 +692,9 @@ export default function RoomPage() {
             if (data.fileId) {
               const deletedId = data.fileId;
               setFiles((prev) => prev.filter((file) => file.id !== deletedId));
-              setOpenFiles((prev) => prev.filter((file) => file.id !== deletedId));
+              setOpenFiles((prev) =>
+                prev.filter((file) => file.id !== deletedId),
+              );
               setActiveFileId((prev) => (prev === deletedId ? null : prev));
             }
             break;
@@ -683,7 +730,9 @@ export default function RoomPage() {
             const request = data.request;
             if (!request) break;
             setPendingRequests((prev) =>
-              prev.some((item) => item.id === request.id) ? prev : [request, ...prev]
+              prev.some((item) => item.id === request.id)
+                ? prev
+                : [request, ...prev],
             );
 
             if (isOwnerRef.current) {
@@ -709,7 +758,7 @@ export default function RoomPage() {
                         fileName: request.fileName,
                         status: "PENDING",
                       },
-                    ]
+                    ],
               );
             }
             break;
@@ -726,8 +775,8 @@ export default function RoomPage() {
                 prev.filter((request) =>
                   permission.scope === "room"
                     ? false
-                    : request.fileId !== permission.approvedFileId
-                )
+                    : request.fileId !== permission.approvedFileId,
+                ),
               );
               setPermissionToast({
                 id: Date.now().toString(),
@@ -743,8 +792,8 @@ export default function RoomPage() {
                   : !(
                       request.userId === permission.userId &&
                       request.fileId === permission.approvedFileId
-                    )
-              )
+                    ),
+              ),
             );
 
             setRoom((prev) => {
@@ -759,7 +808,7 @@ export default function RoomPage() {
                         allowedFiles: permission.allowedFiles,
                         role: permission.canEdit ? "EDITOR" : member.role,
                       }
-                    : member
+                    : member,
                 ),
               };
             });
@@ -792,7 +841,7 @@ export default function RoomPage() {
                         allowedFiles: permission.allowedFiles,
                         role: permission.canEdit ? "EDITOR" : "MEMBER",
                       }
-                    : member
+                    : member,
                 ),
               };
             });
@@ -804,7 +853,9 @@ export default function RoomPage() {
             const wasMine =
               targetUserId === currentUserId ||
               (requestId
-                ? myPendingRequestsRef.current.some((request) => request.id === requestId)
+                ? myPendingRequestsRef.current.some(
+                    (request) => request.id === requestId,
+                  )
                 : false);
 
             if (wasMine) {
@@ -817,8 +868,10 @@ export default function RoomPage() {
 
             setMyPendingRequests((prev) =>
               prev.filter((request) =>
-                requestId ? request.id !== requestId : request.fileId !== fileId
-              )
+                requestId
+                  ? request.id !== requestId
+                  : request.fileId !== fileId,
+              ),
             );
 
             setPendingRequests((prev) =>
@@ -828,8 +881,8 @@ export default function RoomPage() {
                   : !(
                       request.userId === targetUserId &&
                       (!fileId || request.fileId === fileId)
-                    )
-              )
+                    ),
+              ),
             );
             break;
           }
@@ -839,8 +892,11 @@ export default function RoomPage() {
             setPendingRequests((prev) =>
               prev.filter(
                 (request) =>
-                  !(request.userId === userId && (!fileId || request.fileId === fileId))
-              )
+                  !(
+                    request.userId === userId &&
+                    (!fileId || request.fileId === fileId)
+                  ),
+              ),
             );
             break;
           }
@@ -887,7 +943,9 @@ export default function RoomPage() {
       const delay = Math.min(30_000, backoff + Math.random() * 500);
       reconnectAttemptRef.current = attempt + 1;
 
-      setConnectionStatus(navigator.onLine === false ? "disconnected" : "reconnecting");
+      setConnectionStatus(
+        navigator.onLine === false ? "disconnected" : "reconnecting",
+      );
       reconnectTimerRef.current = window.setTimeout(() => {
         reconnectTimerRef.current = null;
         connect();
@@ -919,6 +977,7 @@ export default function RoomPage() {
       ws.onopen = () => {
         if (disposed || roomWsRef.current !== ws) return;
         reconnectAttemptRef.current = 0;
+        setWsFailureCount(0);
         setConnectionStatus("connected");
         startHeartbeat();
         flushQueuedChat();
@@ -933,6 +992,7 @@ export default function RoomPage() {
       ws.onclose = () => {
         if (disposed || roomWsRef.current !== ws) return;
         clearHeartbeat();
+        setWsFailureCount((count) => count + 1);
         setConnectionStatus("disconnected");
         scheduleReconnect();
       };
@@ -1022,7 +1082,11 @@ export default function RoomPage() {
     let latest = startWidth;
 
     const onMove = (moveEvent: MouseEvent) => {
-      latest = clamp(startWidth + (moveEvent.clientX - startX), LEFT_MIN, LEFT_MAX);
+      latest = clamp(
+        startWidth + (moveEvent.clientX - startX),
+        LEFT_MIN,
+        LEFT_MAX,
+      );
       setLeftWidth(latest);
     };
 
@@ -1049,7 +1113,11 @@ export default function RoomPage() {
     let latest = startWidth;
 
     const onMove = (moveEvent: MouseEvent) => {
-      latest = clamp(startWidth + (startX - moveEvent.clientX), RIGHT_MIN, RIGHT_MAX);
+      latest = clamp(
+        startWidth + (startX - moveEvent.clientX),
+        RIGHT_MIN,
+        RIGHT_MAX,
+      );
       setRightWidth(latest);
     };
 
@@ -1128,11 +1196,14 @@ export default function RoomPage() {
 
       const sent = sendWsEvent("chat:send", { content: trimmed, clientId });
       if (!sent) {
-        queuedChatRef.current = [...queuedChatRef.current, { clientId, content: trimmed }];
+        queuedChatRef.current = [
+          ...queuedChatRef.current,
+          { clientId, content: trimmed },
+        ];
         setQueuedChatCount(queuedChatRef.current.length);
       }
     },
-    [room, sendWsEvent, user]
+    [room, sendWsEvent, user],
   );
 
   const handleClearChat = useCallback(async () => {
@@ -1165,7 +1236,7 @@ export default function RoomPage() {
     name: string,
     parentId: string | null,
     type: "file" | "folder",
-    content = ""
+    content = "",
   ): Promise<void> => {
     if (!room) return;
     try {
@@ -1185,13 +1256,15 @@ export default function RoomPage() {
 
       const created = data.file;
       setFiles((prev) =>
-        prev.some((file) => file.id === created.id) ? prev : [...prev, created]
+        prev.some((file) => file.id === created.id) ? prev : [...prev, created],
       );
 
       if (created.type === "file") {
         setActiveFileId(created.id);
         setOpenFiles((prev) =>
-          prev.some((file) => file.id === created.id) ? prev : [...prev, created]
+          prev.some((file) => file.id === created.id)
+            ? prev
+            : [...prev, created],
         );
         setMobileTab("editor");
       }
@@ -1200,7 +1273,10 @@ export default function RoomPage() {
     }
   };
 
-  const handleRenameFile = async (fileId: string, newName: string): Promise<void> => {
+  const handleRenameFile = async (
+    fileId: string,
+    newName: string,
+  ): Promise<void> => {
     if (!room) return;
     try {
       const res = await apiFetch(`/api/rooms/${room.id}/files/${fileId}`, {
@@ -1219,10 +1295,14 @@ export default function RoomPage() {
 
       const updated = data.file;
       setFiles((prev) =>
-        prev.map((file) => (file.id === fileId ? { ...file, ...updated } : file))
+        prev.map((file) =>
+          file.id === fileId ? { ...file, ...updated } : file,
+        ),
       );
       setOpenFiles((prev) =>
-        prev.map((file) => (file.id === fileId ? { ...file, ...updated } : file))
+        prev.map((file) =>
+          file.id === fileId ? { ...file, ...updated } : file,
+        ),
       );
     } catch {
       toast.error("Could not rename the item.");
@@ -1249,16 +1329,22 @@ export default function RoomPage() {
       while (grew) {
         grew = false;
         files.forEach((file) => {
-          if (file.parentId && removedIds.has(file.parentId) && !removedIds.has(file.id)) {
+          if (
+            file.parentId &&
+            removedIds.has(file.parentId) &&
+            !removedIds.has(file.id)
+          ) {
             removedIds.add(file.id);
             grew = true;
           }
         });
       }
 
-      const remainingOpen = openFiles.filter((file) => !removedIds.has(file.id));
+      const remainingOpen = openFiles.filter(
+        (file) => !removedIds.has(file.id),
+      );
       const remainingFiles = files.filter(
-        (file) => file.type === "file" && !removedIds.has(file.id)
+        (file) => file.type === "file" && !removedIds.has(file.id),
       );
 
       setFiles((prev) => prev.filter((file) => !removedIds.has(file.id)));
@@ -1274,7 +1360,7 @@ export default function RoomPage() {
 
   const handleMoveFile = async (
     fileId: string,
-    newParentId: string | null
+    newParentId: string | null,
   ): Promise<void> => {
     if (!room) return;
     try {
@@ -1294,10 +1380,14 @@ export default function RoomPage() {
 
       const updated = data.file;
       setFiles((prev) =>
-        prev.map((file) => (file.id === fileId ? { ...file, ...updated } : file))
+        prev.map((file) =>
+          file.id === fileId ? { ...file, ...updated } : file,
+        ),
       );
       setOpenFiles((prev) =>
-        prev.map((file) => (file.id === fileId ? { ...file, ...updated } : file))
+        prev.map((file) =>
+          file.id === fileId ? { ...file, ...updated } : file,
+        ),
       );
     } catch {
       toast.error("Failed to move item.");
@@ -1306,14 +1396,17 @@ export default function RoomPage() {
 
   const handleDuplicateFile = async (
     fileId: string,
-    targetParentId?: string | null
+    targetParentId?: string | null,
   ): Promise<void> => {
     if (!room) return;
     try {
-      const res = await apiFetch(`/api/rooms/${room.id}/files/${fileId}/duplicate`, {
-        method: "POST",
-        body: JSON.stringify({ targetParentId }),
-      });
+      const res = await apiFetch(
+        `/api/rooms/${room.id}/files/${fileId}/duplicate`,
+        {
+          method: "POST",
+          body: JSON.stringify({ targetParentId }),
+        },
+      );
       const data = (await res.json().catch(() => ({}))) as {
         error?: string;
         files?: FileItem[];
@@ -1327,7 +1420,10 @@ export default function RoomPage() {
       const createdFiles = data.files ?? [];
       setFiles((prev) => {
         const knownIds = new Set(prev.map((file) => file.id));
-        return [...prev, ...createdFiles.filter((file) => !knownIds.has(file.id))];
+        return [
+          ...prev,
+          ...createdFiles.filter((file) => !knownIds.has(file.id)),
+        ];
       });
     } catch {
       toast.error("Failed to duplicate item.");
@@ -1338,7 +1434,7 @@ export default function RoomPage() {
     if (file.type !== "file") return;
     setActiveFileId(file.id);
     setOpenFiles((prev) =>
-      prev.some((item) => item.id === file.id) ? prev : [...prev, file]
+      prev.some((item) => item.id === file.id) ? prev : [...prev, file],
     );
     setMobileTab("editor");
   };
@@ -1348,7 +1444,7 @@ export default function RoomPage() {
     setOpenFiles(remaining);
     if (activeFileId === fileId) {
       setActiveFileId(
-        remaining.length > 0 ? remaining[remaining.length - 1].id : null
+        remaining.length > 0 ? remaining[remaining.length - 1].id : null,
       );
     }
   };
@@ -1374,26 +1470,30 @@ export default function RoomPage() {
           body: JSON.stringify({ action: "request", fileId }),
         });
         if (!res.ok) {
-          const data = (await res.json().catch(() => ({}))) as { error?: string };
+          const data = (await res.json().catch(() => ({}))) as {
+            error?: string;
+          };
           setMyPendingRequests((prev) =>
-            prev.filter((request) => request.fileId !== fileId)
+            prev.filter((request) => request.fileId !== fileId),
           );
           toast.error(errorMessage(data, "Could not request edit permission."));
         }
       } catch {
         setMyPendingRequests((prev) =>
-          prev.filter((request) => request.fileId !== fileId)
+          prev.filter((request) => request.fileId !== fileId),
         );
         toast.error("Could not request edit permission.");
       }
     },
-    [files, room, user]
+    [files, room, user],
   );
 
   const handleCancelPermissionRequest = useCallback(
     async (fileId: string) => {
       if (!room) return;
-      setMyPendingRequests((prev) => prev.filter((request) => request.fileId !== fileId));
+      setMyPendingRequests((prev) =>
+        prev.filter((request) => request.fileId !== fileId),
+      );
 
       try {
         const res = await apiFetch(`/api/rooms/${room.id}/permissions`, {
@@ -1401,75 +1501,91 @@ export default function RoomPage() {
           body: JSON.stringify({ action: "cancel", fileId }),
         });
         if (!res.ok) {
-          const data = (await res.json().catch(() => ({}))) as { error?: string };
+          const data = (await res.json().catch(() => ({}))) as {
+            error?: string;
+          };
           toast.error(errorMessage(data, "Could not cancel the request."));
         }
       } catch {
         toast.error("Could not cancel the request.");
       }
     },
-    [room]
+    [room],
   );
 
   const handleGrantPermission = useCallback(
     async (
       targetUserId: string,
       fileId?: string | null,
-      scope: "file" | "room" = "file"
+      scope: "file" | "room" = "file",
     ) => {
       if (!room) return;
       setPendingRequests((prev) =>
         prev.filter((request) =>
           scope === "room"
             ? request.userId !== targetUserId
-            : !(request.userId === targetUserId && request.fileId === fileId)
-        )
+            : !(request.userId === targetUserId && request.fileId === fileId),
+        ),
       );
 
       try {
         const res = await apiFetch(`/api/rooms/${room.id}/permissions`, {
           method: "POST",
-          body: JSON.stringify({ action: "grant", targetUserId, fileId, scope }),
+          body: JSON.stringify({
+            action: "grant",
+            targetUserId,
+            fileId,
+            scope,
+          }),
         });
         if (!res.ok) {
-          const data = (await res.json().catch(() => ({}))) as { error?: string };
+          const data = (await res.json().catch(() => ({}))) as {
+            error?: string;
+          };
           toast.error(errorMessage(data, "Could not grant permission."));
         }
       } catch {
         toast.error("Could not grant permission.");
       }
     },
-    [room]
+    [room],
   );
 
   const handleRevokePermission = useCallback(
     async (
       targetUserId: string,
       fileId?: string | null,
-      scope: "file" | "room" = "file"
+      scope: "file" | "room" = "file",
     ) => {
       if (!room) return;
       try {
         const res = await apiFetch(`/api/rooms/${room.id}/permissions`, {
           method: "POST",
-          body: JSON.stringify({ action: "revoke", targetUserId, fileId, scope }),
+          body: JSON.stringify({
+            action: "revoke",
+            targetUserId,
+            fileId,
+            scope,
+          }),
         });
         if (!res.ok) {
-          const data = (await res.json().catch(() => ({}))) as { error?: string };
+          const data = (await res.json().catch(() => ({}))) as {
+            error?: string;
+          };
           toast.error(errorMessage(data, "Could not revoke permission."));
         }
       } catch {
         toast.error("Could not revoke permission.");
       }
     },
-    [room]
+    [room],
   );
 
   const handleDeclinePermission = useCallback(
     async (
       requestId?: string,
       targetUserId?: string,
-      fileId?: string | null
+      fileId?: string | null,
     ) => {
       if (!room) return;
       setPendingRequests((prev) =>
@@ -1479,24 +1595,31 @@ export default function RoomPage() {
             : !(
                 request.userId === targetUserId &&
                 (!fileId || request.fileId === fileId)
-              )
-        )
+              ),
+        ),
       );
 
       try {
         const res = await apiFetch(`/api/rooms/${room.id}/permissions`, {
           method: "POST",
-          body: JSON.stringify({ action: "decline", requestId, targetUserId, fileId }),
+          body: JSON.stringify({
+            action: "decline",
+            requestId,
+            targetUserId,
+            fileId,
+          }),
         });
         if (!res.ok) {
-          const data = (await res.json().catch(() => ({}))) as { error?: string };
+          const data = (await res.json().catch(() => ({}))) as {
+            error?: string;
+          };
           toast.error(errorMessage(data, "Could not decline the request."));
         }
       } catch {
         toast.error("Could not decline the request.");
       }
     },
-    [room]
+    [room],
   );
 
   // =========================================================================
@@ -1509,7 +1632,8 @@ export default function RoomPage() {
       const targetFile =
         files.find((file) => file.id === fileId) ??
         (activeFile?.id === fileId ? activeFile : null);
-      const codeToRun = typeof code === "string" ? code : targetFile?.content ?? "";
+      const codeToRun =
+        typeof code === "string" ? code : (targetFile?.content ?? "");
 
       setExecutionState({
         isRunning: true,
@@ -1569,7 +1693,7 @@ export default function RoomPage() {
         });
       }
     },
-    [activeFile, files, isMobile, room, user]
+    [activeFile, files, isMobile, room, user],
   );
 
   const handleStopCode = useCallback(async () => {
@@ -1622,7 +1746,7 @@ export default function RoomPage() {
         }
         if (executionState.isRunning) {
           toast.warning(
-            `${executionState.username ?? "Another user"} is already running code in this room.`
+            `${executionState.username ?? "Another user"} is already running code in this room.`,
           );
           return;
         }
@@ -1661,7 +1785,13 @@ export default function RoomPage() {
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [activeFileId, executionState.isRunning, executionState.username, handleRunCode, isFocusMode]);
+  }, [
+    activeFileId,
+    executionState.isRunning,
+    executionState.username,
+    handleRunCode,
+    isFocusMode,
+  ]);
 
   // =========================================================================
   // Loading / error / password screens
@@ -1671,7 +1801,9 @@ export default function RoomPage() {
     return (
       <div className="flex h-dvh-screen flex-col items-center justify-center gap-3 bg-background">
         <Loader2 className="h-8 w-8 animate-spin text-accent" />
-        <p className="text-sm text-muted">Connecting to collaborative room...</p>
+        <p className="text-sm text-muted">
+          Connecting to collaborative room...
+        </p>
       </div>
     );
   }
@@ -1749,7 +1881,9 @@ export default function RoomPage() {
                     name="roomPassword"
                     autoComplete="current-password"
                     value={roomPasswordInput}
-                    onChange={(event) => setRoomPasswordInput(event.target.value)}
+                    onChange={(event) =>
+                      setRoomPasswordInput(event.target.value)
+                    }
                     placeholder="Enter password"
                     required
                     className="pl-10"
@@ -1761,7 +1895,10 @@ export default function RoomPage() {
                 <Button asChild variant="outline">
                   <Link to="/dashboard">Back to Dashboard</Link>
                 </Button>
-                <Button type="submit" disabled={unlocking || !roomPasswordInput}>
+                <Button
+                  type="submit"
+                  disabled={unlocking || !roomPasswordInput}
+                >
                   {unlocking ? (
                     <Loader2 className="h-3.5 w-3.5 animate-spin" />
                   ) : (
@@ -1821,7 +1958,9 @@ export default function RoomPage() {
       {/* Focus-mode exit pill */}
       {isFocusMode && (
         <div className="absolute right-3 top-3 z-50 flex items-center gap-2 rounded-xl border border-border bg-surface/90 px-3 py-1.5 shadow-xl backdrop-blur-md">
-          <span className="text-xs font-semibold text-foreground">Focus Mode</span>
+          <span className="text-xs font-semibold text-foreground">
+            Focus Mode
+          </span>
           <button
             type="button"
             onClick={() => setIsFocusMode(false)}
@@ -1841,17 +1980,28 @@ export default function RoomPage() {
           aria-live="polite"
           className="z-30 flex shrink-0 items-center justify-between gap-2 border-b border-amber-500/30 bg-amber-500/10 px-3 py-1.5 text-[11px] text-amber-300"
         >
-          <div className="flex min-w-0 items-center gap-2">
+          <div className="flex min-w-0 items-start gap-2">
             {connectionStatus === "reconnecting" ? (
-              <RefreshCw className="h-3.5 w-3.5 shrink-0 animate-spin" />
+              <RefreshCw className="mt-0.5 h-3.5 w-3.5 shrink-0 animate-spin" />
             ) : (
-              <WifiOff className="h-3.5 w-3.5 shrink-0" />
+              <WifiOff className="mt-0.5 h-3.5 w-3.5 shrink-0" />
             )}
-            <span className="truncate">
-              {connectionStatus === "reconnecting"
-                ? "Connection lost — reconnecting automatically…"
-                : "You are offline. Messages will be queued until the connection returns."}
-            </span>
+            <div className="min-w-0">
+              <span className="block truncate">
+                {connectionStatus === "reconnecting"
+                  ? "Connection lost - reconnecting automatically."
+                  : "You are offline. Messages will be queued until the connection returns."}
+              </span>
+              {wsFailureCount >= 3 && (
+                <span className="mt-0.5 block text-[10px] leading-snug text-amber-700 dark:text-amber-200/90">
+                  The real-time WebSocket may be blocked by your network or
+                  proxy. Editing requires{" "}
+                  {`${window.location.protocol === "https:" ? "wss" : "ws"}://${window.location.host};`}{" "}
+                  there is no polling fallback. Ask your administrator to allow
+                  WebSocket upgrades.
+                </span>
+              )}
+            </div>
           </div>
           <button
             type="button"
@@ -1876,8 +2026,16 @@ export default function RoomPage() {
                 variant={leftPanelOpen ? "subtle" : "ghost"}
                 size="icon"
                 onClick={() => setLeftPanelOpen((prev) => !prev)}
-                title={leftPanelOpen ? "Collapse Explorer (Ctrl+B)" : "Expand Explorer (Ctrl+B)"}
-                aria-label={leftPanelOpen ? "Collapse file explorer" : "Expand file explorer"}
+                title={
+                  leftPanelOpen
+                    ? "Collapse Explorer (Ctrl+B)"
+                    : "Expand Explorer (Ctrl+B)"
+                }
+                aria-label={
+                  leftPanelOpen
+                    ? "Collapse file explorer"
+                    : "Expand file explorer"
+                }
                 aria-pressed={leftPanelOpen}
                 className="relative"
               >
@@ -1891,8 +2049,14 @@ export default function RoomPage() {
                 variant={rightPanelOpen ? "subtle" : "ghost"}
                 size="icon"
                 onClick={() => setRightPanelOpen((prev) => !prev)}
-                title={rightPanelOpen ? "Collapse Chat (Ctrl+Shift+C)" : "Expand Chat (Ctrl+Shift+C)"}
-                aria-label={rightPanelOpen ? "Collapse chat panel" : "Expand chat panel"}
+                title={
+                  rightPanelOpen
+                    ? "Collapse Chat (Ctrl+Shift+C)"
+                    : "Expand Chat (Ctrl+Shift+C)"
+                }
+                aria-label={
+                  rightPanelOpen ? "Collapse chat panel" : "Expand chat panel"
+                }
                 aria-pressed={rightPanelOpen}
               >
                 <MessageSquare className="h-4 w-4" />
@@ -1975,10 +2139,15 @@ export default function RoomPage() {
               title="Drag to resize file explorer"
               onMouseDown={startLeftResize}
               onKeyDown={(event) => {
-                if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+                if (event.key !== "ArrowLeft" && event.key !== "ArrowRight")
+                  return;
                 event.preventDefault();
                 setLeftWidth((width) =>
-                  clamp(width + (event.key === "ArrowRight" ? 24 : -24), LEFT_MIN, LEFT_MAX)
+                  clamp(
+                    width + (event.key === "ArrowRight" ? 24 : -24),
+                    LEFT_MIN,
+                    LEFT_MAX,
+                  ),
                 );
               }}
               className={`hidden h-full w-1.5 shrink-0 cursor-col-resize items-center justify-center transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 md:flex ${
@@ -2044,10 +2213,15 @@ export default function RoomPage() {
               title="Drag to resize chat panel"
               onMouseDown={startRightResize}
               onKeyDown={(event) => {
-                if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+                if (event.key !== "ArrowLeft" && event.key !== "ArrowRight")
+                  return;
                 event.preventDefault();
                 setRightWidth((width) =>
-                  clamp(width + (event.key === "ArrowRight" ? -24 : 24), RIGHT_MIN, RIGHT_MAX)
+                  clamp(
+                    width + (event.key === "ArrowRight" ? -24 : 24),
+                    RIGHT_MIN,
+                    RIGHT_MAX,
+                  ),
                 );
               }}
               className={`hidden h-full w-1.5 shrink-0 cursor-col-resize items-center justify-center transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 md:flex ${
@@ -2084,7 +2258,11 @@ export default function RoomPage() {
             connectionStatus={connectionStatus}
             saveStatus={saveStatus}
             cursorPos={cursorPos}
-            language={activeFile ? getLanguageFromFilename(activeFile.name) : "plaintext"}
+            language={
+              activeFile
+                ? getLanguageFromFilename(activeFile.name)
+                : "plaintext"
+            }
             roomCode={room.roomCode}
             executionState={executionState}
             onOpenShortcuts={() => setIsShortcutsOpen(true)}
@@ -2102,7 +2280,11 @@ export default function RoomPage() {
         >
           {(
             [
-              { id: "files", label: `Files (${files.length})`, icon: FolderTree },
+              {
+                id: "files",
+                label: `Files (${files.length})`,
+                icon: FolderTree,
+              },
               { id: "editor", label: "Editor", icon: FileCode },
               { id: "output", label: "Output", icon: Terminal },
               { id: "chat", label: "Chat", icon: MessageSquare },
@@ -2136,13 +2318,17 @@ export default function RoomPage() {
                   {tab.id === "output" && executionState.isRunning && (
                     <span className="absolute -right-1 -top-0.5 h-1.5 w-1.5 animate-pulse rounded-full bg-amber-400" />
                   )}
-                  {tab.id === "output" && !executionState.isRunning && executionResult && (
-                    <span
-                      className={`absolute -right-1 -top-0.5 h-1.5 w-1.5 rounded-full ${
-                        executionResult.exitCode === 0 ? "bg-emerald-400" : "bg-red-400"
-                      }`}
-                    />
-                  )}
+                  {tab.id === "output" &&
+                    !executionState.isRunning &&
+                    executionResult && (
+                      <span
+                        className={`absolute -right-1 -top-0.5 h-1.5 w-1.5 rounded-full ${
+                          executionResult.exitCode === 0
+                            ? "bg-emerald-400"
+                            : "bg-red-400"
+                        }`}
+                      />
+                    )}
                 </span>
                 <span className="truncate">{tab.label}</span>
                 {active && (
@@ -2161,7 +2347,9 @@ export default function RoomPage() {
             open={mobileTab === "files"}
             onOpenChange={(open) => {
               if (!open) {
-                setMobileTab((current) => (current === "files" ? "editor" : current));
+                setMobileTab((current) =>
+                  current === "files" ? "editor" : current,
+                );
               }
             }}
           >
@@ -2198,7 +2386,9 @@ export default function RoomPage() {
             open={mobileTab === "chat"}
             onOpenChange={(open) => {
               if (!open) {
-                setMobileTab((current) => (current === "chat" ? "editor" : current));
+                setMobileTab((current) =>
+                  current === "chat" ? "editor" : current,
+                );
               }
             }}
           >
@@ -2237,6 +2427,7 @@ export default function RoomPage() {
         onClose={() => setIsShareOpen(false)}
         roomCode={room.roomCode}
         roomName={room.name}
+        shareUrl={room.shareUrl ?? null}
       />
 
       <RoomSettingsModal
@@ -2335,12 +2526,16 @@ export default function RoomPage() {
           <div className="min-w-0 text-xs">
             <div className="truncate font-semibold text-foreground">
               {runNotification.username} executed{" "}
-              <span className="font-mono text-accent">{runNotification.filename}</span>
+              <span className="font-mono text-accent">
+                {runNotification.filename}
+              </span>
             </div>
             <div className="mt-0.5 flex items-center gap-1.5 text-[11px] text-muted">
               <span
                 className={`font-semibold ${
-                  runNotification.status === "success" ? "text-emerald-400" : "text-rose-400"
+                  runNotification.status === "success"
+                    ? "text-emerald-400"
+                    : "text-rose-400"
                 }`}
               >
                 {runNotification.status === "success" ? "Success" : "Failed"}
@@ -2392,8 +2587,8 @@ export default function RoomPage() {
                   {permissionToast.type === "request"
                     ? "Edit Request"
                     : permissionToast.type === "success"
-                    ? "Access Granted"
-                    : "Access Notice"}
+                      ? "Access Granted"
+                      : "Access Notice"}
                 </div>
                 <div className="mt-0.5 break-words text-xs text-muted">
                   {permissionToast.message}
@@ -2421,7 +2616,7 @@ export default function RoomPage() {
                     void handleDeclinePermission(
                       permissionToast.request?.id,
                       permissionToast.request?.userId,
-                      permissionToast.request?.fileId
+                      permissionToast.request?.fileId,
                     );
                     setPermissionToast(null);
                   }}
@@ -2436,7 +2631,7 @@ export default function RoomPage() {
                       void handleGrantPermission(
                         permissionToast.request!.userId,
                         permissionToast.request!.fileId,
-                        "file"
+                        "file",
                       );
                       setPermissionToast(null);
                     }}
@@ -2451,7 +2646,7 @@ export default function RoomPage() {
                     void handleGrantPermission(
                       permissionToast.request!.userId,
                       null,
-                      "room"
+                      "room",
                     );
                     setPermissionToast(null);
                   }}

@@ -26,10 +26,7 @@ import { apiFetch } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import {
-  Card,
-  CardFooter,
-} from "@/components/ui/card";
+import { Card, CardFooter } from "@/components/ui/card";
 import {
   Sheet,
   SheetClose,
@@ -65,7 +62,7 @@ export async function runDistributedTask() {
   const result = await room.execute({ timeoutMs: 2500 });
   return { status: "success", timestamp: Date.now() };
 }`,
-    terminalOutput: `[info] Connected to ws://localhost:3000/yjs\n[sync] CRDT document synchronized in 8ms\n[exec] ✨ Welcome Sarah to CodeRoom!\n[exit] Exit code 0 (14ms) • All tests passed`,
+    terminalOutput: `[info] Connected to wss://coderoom.example.com/yjs\n[sync] CRDT document synchronized in 8ms\n[exec] ✨ Welcome Sarah to CodeRoom!\n[exit] Exit code 0 (14ms) • All tests passed`,
   },
   "server.py": {
     fileName: "server.py",
@@ -109,7 +106,7 @@ if __name__ == "__main__":
 A lightning-fast collaborative coding room built for teams, classmates, and friends.
 
 ### Highlights
-- ⚡ **Zero Setup**: Create a room in 1 click and share the 6-character code.
+- ⚡ **Zero Setup**: Create a room in 1 click and share the short room code.
 - 🔄 **Yjs CRDT Synchronization**: Sub-millisecond peer editing with remote cursor presence.
 - 🛡️ **Granular Access Control**: Admin approval workflows for file editing.
 - 💻 **Sandboxed Multi-Language Execution**: Run Java, Python, TypeScript, JavaScript, C++, and Bash with single-runner mutex locking.`,
@@ -183,14 +180,16 @@ const NAV_LINKS = [
 
 export default function LandingPage() {
   const [user, setUser] = useState<{ id: string; username: string } | null>(
-    null
+    null,
   );
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<
     "main.ts" | "server.py" | "Main.java" | "README.md"
   >("main.ts");
   const [copiedCode, setCopiedCode] = useState(false);
-  const [demoView, setDemoView] = useState<"code" | "chat" | "terminal">("code");
+  const [demoView, setDemoView] = useState<"code" | "chat" | "terminal">(
+    "code",
+  );
 
   useEffect(() => {
     apiFetch("/api/auth/me")
@@ -228,9 +227,7 @@ export default function LandingPage() {
             <div className="flex items-center gap-1.5">
               <span className="text-base font-bold tracking-tight text-foreground sm:text-lg">
                 Code
-                <span className="text-muted-foreground">
-                  Room
-                </span>
+                <span className="text-muted-foreground">Room</span>
               </span>
               <Badge variant="accent" className="uppercase tracking-wider">
                 v2.0
@@ -368,11 +365,7 @@ export default function LandingPage() {
             </p>
 
             <div className="mx-auto mt-8 flex w-full max-w-md flex-col items-center justify-center gap-3 sm:mt-10 sm:max-w-none sm:flex-row sm:gap-4">
-              <Button
-                asChild
-                size="lg"
-                className="w-full px-6 sm:w-auto"
-              >
+              <Button asChild size="lg" className="w-full px-6 sm:w-auto">
                 <Link to={user ? "/dashboard?action=create" : "/register"}>
                   <Plus className="h-5 w-5" />
                   <span>Create a Free Room</span>
@@ -386,7 +379,11 @@ export default function LandingPage() {
                 className="w-full bg-surface/90 px-6 backdrop-blur-md sm:w-auto"
               >
                 <Link
-                  to={user ? "/dashboard?action=join" : "/login?redirect=/dashboard"}
+                  to={
+                    user
+                      ? "/dashboard?action=join"
+                      : "/login?redirect=/dashboard"
+                  }
                 >
                   <LogIn className="h-5 w-5 text-muted-foreground" />
                   <span>Join with Room Code</span>
@@ -396,7 +393,11 @@ export default function LandingPage() {
 
             <div className="mt-8 flex flex-wrap items-center justify-center gap-x-6 gap-y-3 text-xs font-medium text-muted-foreground sm:mt-12">
               {[
-                { icon: Zap, tone: "text-muted-foreground", label: "< 15ms CRDT Synchronization" },
+                {
+                  icon: Zap,
+                  tone: "text-muted-foreground",
+                  label: "< 15ms CRDT Synchronization",
+                },
                 {
                   icon: Play,
                   tone: "text-muted-foreground",
@@ -456,7 +457,7 @@ export default function LandingPage() {
                         >
                           {["SK", "AL", "SR", "LM"][idx]}
                         </div>
-                      )
+                      ),
                     )}
                     <span className="hidden pl-2 text-xs font-medium text-emerald-400 sm:inline">
                       4 Online
@@ -502,7 +503,7 @@ export default function LandingPage() {
                           "flex shrink-0 items-center gap-2 rounded-md px-3 py-1 font-mono text-xs transition-all",
                           isActive
                             ? "border-b-2 border-accent bg-surface font-semibold text-foreground shadow-sm"
-                            : "text-muted-foreground hover:bg-surface/50 hover:text-foreground"
+                            : "text-muted-foreground hover:bg-surface/50 hover:text-foreground",
                         )}
                       >
                         <FileCode2 className="h-3.5 w-3.5 shrink-0 text-accent" />
@@ -542,10 +543,27 @@ export default function LandingPage() {
                   </div>
 
                   {[
-                    { file: "main.ts", tag: "TS", tone: "bg-secondary text-foreground", edited: true },
-                    { file: "server.py", tag: "PY", tone: "bg-secondary text-foreground" },
-                    { file: "Main.java", tag: "JV", tone: "bg-secondary text-foreground" },
-                    { file: "README.md", tag: "MD", tone: "bg-secondary text-foreground" },
+                    {
+                      file: "main.ts",
+                      tag: "TS",
+                      tone: "bg-secondary text-foreground",
+                      edited: true,
+                    },
+                    {
+                      file: "server.py",
+                      tag: "PY",
+                      tone: "bg-secondary text-foreground",
+                    },
+                    {
+                      file: "Main.java",
+                      tag: "JV",
+                      tone: "bg-secondary text-foreground",
+                    },
+                    {
+                      file: "README.md",
+                      tag: "MD",
+                      tone: "bg-secondary text-foreground",
+                    },
                   ].map((item) => {
                     const isActive = activeTab === item.file;
                     return (
@@ -558,14 +576,14 @@ export default function LandingPage() {
                           "flex cursor-pointer items-center justify-between rounded-lg px-2 py-1.5 transition-colors",
                           isActive
                             ? "bg-accent/15 font-semibold text-accent"
-                            : "text-muted-foreground hover:bg-surface/60 hover:text-foreground"
+                            : "text-muted-foreground hover:bg-surface/60 hover:text-foreground",
                         )}
                       >
                         <div className="flex items-center gap-2 text-xs">
                           <span
                             className={cn(
                               "flex h-4 w-4 items-center justify-center rounded text-[9px] font-bold",
-                              item.tone
+                              item.tone,
                             )}
                           >
                             {item.tag}
@@ -586,7 +604,7 @@ export default function LandingPage() {
                 <div
                   className={cn(
                     "col-span-12 flex-col justify-between overflow-hidden bg-panel p-3.5 sm:p-4 md:col-span-6 md:flex",
-                    demoView === "code" ? "flex" : "hidden"
+                    demoView === "code" ? "flex" : "hidden",
                   )}
                 >
                   <pre className="overflow-y-auto whitespace-pre-wrap font-mono text-[11px] leading-relaxed text-foreground/90 selection:bg-accent/30 sm:text-xs">
@@ -616,7 +634,7 @@ export default function LandingPage() {
                 <div
                   className={cn(
                     "col-span-12 h-full flex-col overflow-hidden border-l border-border/70 bg-surface/30 font-sans md:col-span-3 md:flex",
-                    demoView !== "code" ? "flex" : "hidden"
+                    demoView !== "code" ? "flex" : "hidden",
                   )}
                 >
                   <div
@@ -624,7 +642,7 @@ export default function LandingPage() {
                       "flex-1 flex-col space-y-2.5 overflow-y-auto border-b border-border/60 p-3 md:flex",
                       demoView === "chat" || demoView === "code"
                         ? "flex"
-                        : "hidden"
+                        : "hidden",
                     )}
                   >
                     <div className="mb-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
@@ -667,7 +685,7 @@ export default function LandingPage() {
                         ? "block"
                         : "hidden",
                       demoView === "terminal" && "flex-1 overflow-y-auto",
-                      "md:block"
+                      "md:block",
                     )}
                   >
                     <div className="mb-1 flex select-none items-center justify-between text-muted-foreground">
@@ -696,10 +714,7 @@ export default function LandingPage() {
         >
           <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
             <div className="mx-auto mb-16 max-w-3xl text-center">
-              <Badge
-                variant="accent"
-                className="mb-3 uppercase tracking-wider"
-              >
+              <Badge variant="accent" className="mb-3 uppercase tracking-wider">
                 Features
               </Badge>
               <h2 className="text-3xl font-extrabold tracking-tight sm:text-4xl">
@@ -721,14 +736,14 @@ export default function LandingPage() {
                     <div
                       className={cn(
                         "mb-5 flex h-11 w-11 items-center justify-center rounded-xl border shadow-sm",
-                        feature.tone
+                        feature.tone,
                       )}
                     >
                       <feature.icon
                         className={cn(
                           "h-5 w-5",
                           feature.title === "Sandboxed Code Execution" &&
-                            "fill-current"
+                            "fill-current",
                         )}
                       />
                     </div>
@@ -773,7 +788,7 @@ export default function LandingPage() {
                   tone: "bg-accent/20 text-accent",
                   title: "Create or Join",
                   description:
-                    "Start a new room with a custom project template or enter a 6-character room code to join an ongoing session.",
+                    "Start a new room with a custom project template or enter a room code to join an ongoing session.",
                 },
                 {
                   step: "02",
@@ -794,7 +809,7 @@ export default function LandingPage() {
                   <div
                     className={cn(
                       "mb-4 flex h-8 w-8 items-center justify-center rounded-lg font-mono text-sm font-bold",
-                      item.tone
+                      item.tone,
                     )}
                   >
                     {item.step}
@@ -815,7 +830,6 @@ export default function LandingPage() {
         <section id="security" className="relative overflow-hidden py-20">
           <div className="relative z-10 mx-auto max-w-4xl px-4 text-center sm:px-6 lg:px-8">
             <div className="relative overflow-hidden rounded-3xl border border-border bg-surface p-8 shadow-sm sm:p-12">
-
               <h2 className="text-balance text-2xl font-extrabold tracking-tight sm:text-4xl">
                 Ready to transform how your team codes together?
               </h2>

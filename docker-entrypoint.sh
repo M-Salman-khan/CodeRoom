@@ -5,6 +5,11 @@ echo "======================================================="
 echo "  CodeRoom — MERN server starting"
 echo "  MongoDB: ${MONGODB_URI:-mongodb://mongo:27017/coderoom}"
 echo "  Port:    ${PORT:-3000}"
+if [ -n "$PUBLIC_BASE_URL" ]; then
+  echo "  Public:  $PUBLIC_BASE_URL"
+else
+  echo "  Public:  (not configured — invitation links disabled)"
+fi
 echo "======================================================="
 
 # Optional: seed demo users and room on first boot.

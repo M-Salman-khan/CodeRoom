@@ -1,12 +1,16 @@
+import { randomInt } from "node:crypto";
+
 /**
- * Generate a 6 character room code using uppercase alphanumerics that avoid
- * visually confusing characters (0, O, 1, I, L).
+ * Generate an 8 character room code using uppercase alphanumerics that avoid
+ * visually confusing characters (0, O, 1, I, L). randomInt is used (rather than
+ * Math.random) so codes cannot be predicted from previously issued codes.
+ * Existing shorter codes (including the seeded DEMO01) remain valid.
  */
 export function generateRoomCode(): string {
   const chars = "23456789ABCDEFGHJKMNPQRSTUVWXYZ";
   let code = "";
-  for (let i = 0; i < 6; i++) {
-    code += chars.charAt(Math.floor(Math.random() * chars.length));
+  for (let i = 0; i < 8; i++) {
+    code += chars.charAt(randomInt(chars.length));
   }
   return code;
 }

@@ -1,20 +1,26 @@
 import { WebSocket } from "ws";
 import type { SessionUser } from "../lib/auth";
 import { canUserEdit } from "../lib/permissions";
+import { authorizeRoomKey } from "../lib/rooms";
 import { serializeFile, serializeRoomBase } from "../lib/serializers";
 import { getLanguageFromFilename } from "../lib/utils";
+import { LIMITS, byteLength, validateFileName } from "../lib/validation";
 import { File } from "../models/file";
 import { Message } from "../models/message";
 import { PermissionRequest } from "../models/permission-request";
 import { Room } from "../models/room";
 import { RoomMember } from "../models/room-member";
 import { deleteFileTree } from "../services/cascade";
-import { getRoomExecutionState, stopRoomExecution } from "../services/code-runner";
+import {
+  getRoomExecutionState,
+  stopRoomExecution,
+} from "../services/code-runner";
 
 interface RoomClient {
   ws: WebSocket;
   user: SessionUser;
   isAlive: boolean;
+  chatTimestamps: number[];
 }
 
 // Map of roomId -> connected clients. Shared through globalThis like the legacy
@@ -22,14 +28,16 @@ interface RoomClient {
 const globalForRoom = globalThis as unknown as {
   __coderoomRoomClients?: Map<string, Set<RoomClient>>;
 };
-export const roomClients: Map<string, Set<RoomClient>> =
-  globalForRoom.__coderoomRoomClients ||
-  (globalForRoom.__coderoomRoomClients = new Map<string, Set<RoomClient>>());
+export const roomClients: Map<
+  string,
+  Set<RoomClient>
+> = globalForRoom.__coderoomRoomClients ||
+(globalForRoom.__coderoomRoomClients = new Map<string, Set<RoomClient>>());
 
 export function broadcastToRoom(
   roomId: string,
   data: Record<string, unknown>,
-  excludeWs?: WebSocket
+  excludeWs?: WebSocket,
 ): void {
   const clients = roomClients.get(roomId);
   if (!clients) return;
@@ -42,13 +50,18 @@ export function broadcastToRoom(
   });
 }
 
-function getOnlineUsers(roomId: string): Array<{ id: string; username: string }> {
+function getOnlineUsers(
+  roomId: string,
+): Array<{ id: string; username: string }> {
   const clients = roomClients.get(roomId);
   if (!clients) return [];
 
   const unique = new Map<string, { id: string; username: string }>();
   clients.forEach((client) => {
-    unique.set(client.user.id, { id: client.user.id, username: client.user.username });
+    unique.set(client.user.id, {
+      id: client.user.id,
+      username: client.user.username,
+    });
   });
   return Array.from(unique.values());
 }
@@ -62,7 +75,11 @@ async function isRoomOwner(roomId: string, userId: string): Promise<boolean> {
 // File event persistence (REST already writes; these handlers are idempotent)
 // ---------------------------------------------------------------------------
 
-async function handleFileCreate(roomId: string, user: SessionUser, payload: Record<string, unknown>): Promise<void> {
+async function handleFileCreate(
+  roomId: string,
+  user: SessionUser,
+  payload: Record<string, unknown>,
+): Promise<void> {
   const incoming = payload.file as Record<string, unknown> | undefined;
   if (!incoming) return;
 
@@ -72,7 +89,10 @@ async function handleFileCreate(roomId: string, user: SessionUser, payload: Reco
     if (existing) {
       // Already persisted by the REST route; fan out a sanitized copy.
       if (!(await canUserEdit(user.id, roomId, existing._id))) return;
-      broadcastToRoom(roomId, { type: "file:create", file: serializeFile(existing) });
+      broadcastToRoom(roomId, {
+        type: "file:create",
+        file: serializeFile(existing),
+      });
       return;
     }
   }
@@ -81,12 +101,22 @@ async function handleFileCreate(roomId: string, user: SessionUser, payload: Reco
 
   const name = typeof incoming.name === "string" ? incoming.name.trim() : "";
   if (!name) return;
+  if (validateFileName(name)) return;
+  if (
+    typeof incoming.content === "string" &&
+    byteLength(incoming.content) > LIMITS.fileContentBytes
+  ) {
+    return;
+  }
 
   const type = incoming.type === "folder" ? "folder" : "file";
-  const parentId = typeof incoming.parentId === "string" ? incoming.parentId : null;
+  const parentId =
+    typeof incoming.parentId === "string" ? incoming.parentId : null;
 
   if (parentId) {
-    const folder = await File.findOne({ _id: parentId, roomId, type: "folder" }).select("_id").exec();
+    const folder = await File.findOne({ _id: parentId, roomId, type: "folder" })
+      .select("_id")
+      .exec();
     if (!folder) return;
   }
 
@@ -103,15 +133,23 @@ async function handleFileCreate(roomId: string, user: SessionUser, payload: Reco
     content: type === "file" ? content : "",
   });
 
-  broadcastToRoom(roomId, { type: "file:create", file: serializeFile(created) });
+  broadcastToRoom(roomId, {
+    type: "file:create",
+    file: serializeFile(created),
+  });
 }
 
-async function handleFileRename(roomId: string, user: SessionUser, payload: Record<string, unknown>): Promise<void> {
+async function handleFileRename(
+  roomId: string,
+  user: SessionUser,
+  payload: Record<string, unknown>,
+): Promise<void> {
   const incoming = payload.file as Record<string, unknown> | undefined;
   if (!incoming || typeof incoming.id !== "string") return;
 
   const name = typeof incoming.name === "string" ? incoming.name.trim() : "";
   if (!name) return;
+  if (validateFileName(name)) return;
   if (!(await canUserEdit(user.id, roomId, incoming.id))) return;
 
   const file = await File.findOne({ _id: incoming.id, roomId }).exec();
@@ -134,7 +172,11 @@ async function handleFileRename(roomId: string, user: SessionUser, payload: Reco
   broadcastToRoom(roomId, { type: "file:rename", file: serializeFile(file) });
 }
 
-async function handleFileUpdate(roomId: string, user: SessionUser, payload: Record<string, unknown>): Promise<void> {
+async function handleFileUpdate(
+  roomId: string,
+  user: SessionUser,
+  payload: Record<string, unknown>,
+): Promise<void> {
   const incoming = payload.file as Record<string, unknown> | undefined;
   if (!incoming || typeof incoming.id !== "string") return;
   if (!(await canUserEdit(user.id, roomId, incoming.id))) return;
@@ -145,16 +187,25 @@ async function handleFileUpdate(roomId: string, user: SessionUser, payload: Reco
   let changed = false;
 
   if (incoming.parentId !== undefined) {
-    const parentId = incoming.parentId === null ? null : String(incoming.parentId);
+    const parentId =
+      incoming.parentId === null ? null : String(incoming.parentId);
     if (parentId) {
-      const folder = await File.findOne({ _id: parentId, roomId, type: "folder" }).select("_id parentId").exec();
+      const folder = await File.findOne({
+        _id: parentId,
+        roomId,
+        type: "folder",
+      })
+        .select("_id parentId")
+        .exec();
       if (!folder) return;
 
       if (file.type === "folder") {
         let current: string | null = folder.parentId;
         while (current) {
           if (current === file._id) return;
-          const ancestor = await File.findById(current).select("parentId").exec();
+          const ancestor = await File.findById(current)
+            .select("parentId")
+            .exec();
           current = ancestor?.parentId ?? null;
         }
       }
@@ -169,7 +220,11 @@ async function handleFileUpdate(roomId: string, user: SessionUser, payload: Reco
   }
 }
 
-async function handleFileDelete(roomId: string, user: SessionUser, payload: Record<string, unknown>): Promise<void> {
+async function handleFileDelete(
+  roomId: string,
+  user: SessionUser,
+  payload: Record<string, unknown>,
+): Promise<void> {
   const fileId = typeof payload.fileId === "string" ? payload.fileId : null;
   if (!fileId) return;
 
@@ -188,7 +243,11 @@ async function handleFileDelete(roomId: string, user: SessionUser, payload: Reco
   }
 }
 
-async function handleRoomUpdate(roomId: string, user: SessionUser, payload: Record<string, unknown>): Promise<void> {
+async function handleRoomUpdate(
+  roomId: string,
+  user: SessionUser,
+  payload: Record<string, unknown>,
+): Promise<void> {
   const incoming = payload.room as Record<string, unknown> | undefined;
   if (!incoming) return;
   if (!(await isRoomOwner(roomId, user.id))) return;
@@ -200,7 +259,10 @@ async function handleRoomUpdate(roomId: string, user: SessionUser, payload: Reco
     room.name = incoming.name.trim();
   }
   if (incoming.description !== undefined) {
-    const description = typeof incoming.description === "string" ? incoming.description.trim() : "";
+    const description =
+      typeof incoming.description === "string"
+        ? incoming.description.trim()
+        : "";
     room.description = description || null;
   }
   if (typeof incoming.isPublic === "boolean") {
@@ -208,20 +270,40 @@ async function handleRoomUpdate(roomId: string, user: SessionUser, payload: Reco
   }
   await room.save();
 
-  broadcastToRoom(roomId, { type: "room:update", room: serializeRoomBase(room) });
+  broadcastToRoom(roomId, {
+    type: "room:update",
+    room: serializeRoomBase(room),
+  });
 }
 
 // ---------------------------------------------------------------------------
 // Connection handler
 // ---------------------------------------------------------------------------
 
-export function handleRoomConnection(ws: WebSocket, roomId: string, user: SessionUser): void {
+export async function handleRoomConnection(
+  ws: WebSocket,
+  roomId: string,
+  user: SessionUser,
+): Promise<void> {
+  // Defense in depth: the upgrade path already checks membership, but verify
+  // again before any room state is disclosed.
+  const access = await authorizeRoomKey(user.id, roomId);
+  if (!access) {
+    ws.close(1008, "Not a member of this room");
+    return;
+  }
+  roomId = access.roomId;
+
+  if (ws.readyState !== WebSocket.OPEN) {
+    return;
+  }
+
   if (!roomClients.has(roomId)) {
     roomClients.set(roomId, new Set());
   }
 
   const clients = roomClients.get(roomId)!;
-  const client: RoomClient = { ws, user, isAlive: true };
+  const client: RoomClient = { ws, user, isAlive: true, chatTimestamps: [] };
   clients.add(client);
 
   const currentOnline = getOnlineUsers(roomId);
@@ -233,7 +315,7 @@ export function handleRoomConnection(ws: WebSocket, roomId: string, user: Sessio
         type: "presence:update",
         onlineUsers: currentOnline,
         execution: currentExecution,
-      })
+      }),
     );
   } catch {
     // socket may already be closed
@@ -242,7 +324,7 @@ export function handleRoomConnection(ws: WebSocket, roomId: string, user: Sessio
   broadcastToRoom(
     roomId,
     { type: "presence:update", onlineUsers: currentOnline },
-    ws
+    ws,
   );
 
   ws.on("pong", () => {
@@ -266,7 +348,7 @@ export function handleRoomConnection(ws: WebSocket, roomId: string, user: Sessio
                 type: "presence:update",
                 onlineUsers: getOnlineUsers(roomId),
                 execution: getRoomExecutionState(roomId),
-              })
+              }),
             );
             break;
           }
@@ -276,7 +358,7 @@ export function handleRoomConnection(ws: WebSocket, roomId: string, user: Sessio
               JSON.stringify({
                 type: "execution:update",
                 execution: getRoomExecutionState(roomId),
-              })
+              }),
             );
             break;
           }
@@ -301,10 +383,32 @@ export function handleRoomConnection(ws: WebSocket, roomId: string, user: Sessio
           }
 
           case "chat:send": {
-            const content = typeof payload.content === "string" ? payload.content.trim() : "";
+            const content =
+              typeof payload.content === "string" ? payload.content.trim() : "";
             if (!content) return;
+            if (content.length > LIMITS.chatMessage) return;
 
-            const saved = await Message.create({ roomId, userId: user.id, content });
+            const now = Date.now();
+            client.chatTimestamps = client.chatTimestamps.filter(
+              (timestamp) => now - timestamp < 10_000,
+            );
+            if (client.chatTimestamps.length >= 20) {
+              ws.send(
+                JSON.stringify({
+                  type: "chat:error",
+                  error:
+                    "You are sending messages too quickly. Please wait a few seconds.",
+                }),
+              );
+              return;
+            }
+            client.chatTimestamps.push(now);
+
+            const saved = await Message.create({
+              roomId,
+              userId: user.id,
+              content,
+            });
             broadcastToRoom(roomId, {
               type: "chat:message",
               message: {
@@ -320,8 +424,12 @@ export function handleRoomConnection(ws: WebSocket, roomId: string, user: Sessio
           }
 
           case "chat:clear": {
+            if (!(await isRoomOwner(roomId, user.id))) return;
             await Message.deleteMany({ roomId });
-            broadcastToRoom(roomId, { type: "chat:clear", clearedBy: user.username });
+            broadcastToRoom(roomId, {
+              type: "chat:clear",
+              clearedBy: user.username,
+            });
             break;
           }
 
@@ -356,16 +464,19 @@ export function handleRoomConnection(ws: WebSocket, roomId: string, user: Sessio
                 result: payload.result,
                 timestamp: Date.now(),
               },
-              ws
+              ws,
             );
             break;
           }
 
           case "permission:request": {
-            const fileId = typeof payload.fileId === "string" ? payload.fileId : null;
+            const fileId =
+              typeof payload.fileId === "string" ? payload.fileId : null;
             let fileName = "all files";
             if (fileId) {
-              const fileRecord = await File.findOne({ _id: fileId, roomId }).select("name").exec();
+              const fileRecord = await File.findOne({ _id: fileId, roomId })
+                .select("name")
+                .exec();
               if (fileRecord) fileName = fileRecord.name;
             }
 
@@ -402,16 +513,30 @@ export function handleRoomConnection(ws: WebSocket, roomId: string, user: Sessio
           case "permission:grant": {
             if (!(await isRoomOwner(roomId, user.id))) return;
 
-            const targetUserId = typeof payload.targetUserId === "string" ? payload.targetUserId : null;
+            const targetUserId =
+              typeof payload.targetUserId === "string"
+                ? payload.targetUserId
+                : null;
             if (!targetUserId) return;
-            const fileId = typeof payload.fileId === "string" ? payload.fileId : null;
-            const scope = typeof payload.scope === "string" ? payload.scope : fileId ? "file" : "room";
+            const fileId =
+              typeof payload.fileId === "string" ? payload.fileId : null;
+            const scope =
+              typeof payload.scope === "string"
+                ? payload.scope
+                : fileId
+                  ? "file"
+                  : "room";
 
-            const member = await RoomMember.findOne({ roomId, userId: targetUserId }).exec();
+            const member = await RoomMember.findOne({
+              roomId,
+              userId: targetUserId,
+            }).exec();
             if (!member) return;
 
             let updatedCanEdit = member.canEdit;
-            const allowedFilesList = Array.isArray(member.allowedFiles) ? [...member.allowedFiles] : [];
+            const allowedFilesList = Array.isArray(member.allowedFiles)
+              ? [...member.allowedFiles]
+              : [];
 
             if (scope === "room" || !fileId) {
               updatedCanEdit = true;
@@ -431,7 +556,7 @@ export function handleRoomConnection(ws: WebSocket, roomId: string, user: Sessio
                 status: "PENDING",
                 ...(scope === "room" ? {} : { fileId }),
               },
-              { $set: { status: "APPROVED" } }
+              { $set: { status: "APPROVED" } },
             );
 
             broadcastToRoom(roomId, {
@@ -452,16 +577,30 @@ export function handleRoomConnection(ws: WebSocket, roomId: string, user: Sessio
           case "permission:revoke": {
             if (!(await isRoomOwner(roomId, user.id))) return;
 
-            const targetUserId = typeof payload.targetUserId === "string" ? payload.targetUserId : null;
+            const targetUserId =
+              typeof payload.targetUserId === "string"
+                ? payload.targetUserId
+                : null;
             if (!targetUserId) return;
-            const fileId = typeof payload.fileId === "string" ? payload.fileId : null;
-            const scope = typeof payload.scope === "string" ? payload.scope : fileId ? "file" : "room";
+            const fileId =
+              typeof payload.fileId === "string" ? payload.fileId : null;
+            const scope =
+              typeof payload.scope === "string"
+                ? payload.scope
+                : fileId
+                  ? "file"
+                  : "room";
 
-            const member = await RoomMember.findOne({ roomId, userId: targetUserId }).exec();
+            const member = await RoomMember.findOne({
+              roomId,
+              userId: targetUserId,
+            }).exec();
             if (!member) return;
 
             let updatedCanEdit = member.canEdit;
-            let allowedFilesList = Array.isArray(member.allowedFiles) ? [...member.allowedFiles] : [];
+            let allowedFilesList = Array.isArray(member.allowedFiles)
+              ? [...member.allowedFiles]
+              : [];
 
             if (scope === "room" || !fileId) {
               updatedCanEdit = false;
@@ -493,14 +632,19 @@ export function handleRoomConnection(ws: WebSocket, roomId: string, user: Sessio
           case "permission:decline": {
             if (!(await isRoomOwner(roomId, user.id))) return;
 
-            const targetUserId = typeof payload.targetUserId === "string" ? payload.targetUserId : null;
-            const fileId = typeof payload.fileId === "string" ? payload.fileId : null;
-            const requestId = typeof payload.requestId === "string" ? payload.requestId : null;
+            const targetUserId =
+              typeof payload.targetUserId === "string"
+                ? payload.targetUserId
+                : null;
+            const fileId =
+              typeof payload.fileId === "string" ? payload.fileId : null;
+            const requestId =
+              typeof payload.requestId === "string" ? payload.requestId : null;
 
             if (requestId) {
               await PermissionRequest.updateOne(
                 { _id: requestId, roomId },
-                { $set: { status: "DECLINED" } }
+                { $set: { status: "DECLINED" } },
               );
             } else if (targetUserId) {
               await PermissionRequest.updateMany(
@@ -510,7 +654,7 @@ export function handleRoomConnection(ws: WebSocket, roomId: string, user: Sessio
                   status: "PENDING",
                   ...(fileId ? { fileId } : {}),
                 },
-                { $set: { status: "DECLINED" } }
+                { $set: { status: "DECLINED" } },
               );
             }
 
@@ -525,11 +669,17 @@ export function handleRoomConnection(ws: WebSocket, roomId: string, user: Sessio
           }
 
           case "permission:cancel": {
-            const fileId = typeof payload.fileId === "string" ? payload.fileId : null;
-            const requestId = typeof payload.requestId === "string" ? payload.requestId : null;
+            const fileId =
+              typeof payload.fileId === "string" ? payload.fileId : null;
+            const requestId =
+              typeof payload.requestId === "string" ? payload.requestId : null;
 
             if (requestId) {
-              await PermissionRequest.deleteOne({ _id: requestId, userId: user.id, roomId });
+              await PermissionRequest.deleteOne({
+                _id: requestId,
+                userId: user.id,
+                roomId,
+              });
             } else {
               await PermissionRequest.deleteMany({
                 roomId,

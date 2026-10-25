@@ -1,11 +1,17 @@
 import { Router } from "express";
 import { asyncHandler } from "../lib/http";
 import { canUserEdit } from "../lib/permissions";
-import { fileFromParams, roomFromParams } from "../lib/route-helpers";
+import {
+  fileFromParams,
+  requireRoomMembership,
+  roomFromParams,
+} from "../lib/route-helpers";
 import { serializeFile } from "../lib/serializers";
 import { getLanguageFromFilename } from "../lib/utils";
+import { LIMITS, byteLength, validateFileName } from "../lib/validation";
 import { buildYjsState } from "../lib/yjs-state";
 import { requireAuth } from "../middleware/auth";
+import { writeLimiter } from "../middleware/rate-limit";
 import { File, type FileRecord } from "../models/file";
 import { deleteFileTree } from "../services/cascade";
 import { broadcastToRoom } from "../ws/room-handler";
@@ -18,7 +24,8 @@ function uniqueCopyName(originalName: string, existingNames: string[]): string {
   }
 
   const dotIndex = originalName.lastIndexOf(".");
-  const base = dotIndex > 0 ? originalName.substring(0, dotIndex) : originalName;
+  const base =
+    dotIndex > 0 ? originalName.substring(0, dotIndex) : originalName;
   const ext = dotIndex > 0 ? originalName.substring(dotIndex) : "";
 
   let candidate = `${base} copy${ext}`;
@@ -36,42 +43,61 @@ router.get(
   asyncHandler(async (req, res) => {
     const room = await roomFromParams(req, res);
     if (!room) return;
+    if (!(await requireRoomMembership(req, res, room))) return;
 
     const files = await File.find({ roomId: room._id })
       .sort({ type: -1, name: 1, _id: 1 })
       .exec();
 
     res.json({ files: files.map(serializeFile) });
-  })
+  }),
 );
 
 router.post(
   "/",
   requireAuth,
+  writeLimiter,
   asyncHandler(async (req, res) => {
     const user = req.user!;
     const room = await roomFromParams(req, res);
     if (!room) return;
+    if (!(await requireRoomMembership(req, res, room))) return;
 
     const allowed = await canUserEdit(user.id, room._id);
     if (!allowed) {
-      res.status(403).json({ error: "You do not have permission to create files in this room." });
+      res
+        .status(403)
+        .json({
+          error: "You do not have permission to create files in this room.",
+        });
       return;
     }
 
     const body = req.body || {};
     const name = typeof body.name === "string" ? body.name.trim() : "";
     const type = body.type === "folder" ? "folder" : "file";
-    const parentId = typeof body.parentId === "string" && body.parentId ? body.parentId : null;
+    const parentId =
+      typeof body.parentId === "string" && body.parentId ? body.parentId : null;
     const content = typeof body.content === "string" ? body.content : "";
 
-    if (!name) {
-      res.status(400).json({ error: "File or folder name is required" });
+    const nameError = validateFileName(name);
+    if (nameError) {
+      res.status(400).json({ error: nameError });
+      return;
+    }
+    if (byteLength(content) > LIMITS.fileContentBytes) {
+      res.status(413).json({
+        error: `File content must be ${LIMITS.fileContentBytes.toLocaleString()} bytes or smaller`,
+      });
       return;
     }
 
     if (parentId) {
-      const parent = await File.findOne({ _id: parentId, roomId: room._id, type: "folder" })
+      const parent = await File.findOne({
+        _id: parentId,
+        roomId: room._id,
+        type: "folder",
+      })
         .select("_id")
         .exec();
       if (!parent) {
@@ -82,7 +108,11 @@ router.post(
 
     const duplicate = await File.exists({ roomId: room._id, parentId, name });
     if (duplicate) {
-      res.status(409).json({ error: `An item named "${name}" already exists in this folder.` });
+      res
+        .status(409)
+        .json({
+          error: `An item named "${name}" already exists in this folder.`,
+        });
       return;
     }
 
@@ -103,7 +133,7 @@ router.post(
     broadcastToRoom(room._id, { type: "file:create", file: serialized });
 
     res.status(201).json({ file: serialized });
-  })
+  }),
 );
 
 router.get(
@@ -112,34 +142,41 @@ router.get(
   asyncHandler(async (req, res) => {
     const room = await roomFromParams(req, res);
     if (!room) return;
+    if (!(await requireRoomMembership(req, res, room))) return;
 
     const file = await fileFromParams(req, res, room._id);
     if (!file) return;
 
     res.json({ file: serializeFile(file) });
-  })
+  }),
 );
 
 router.patch(
   "/:fileId",
   requireAuth,
+  writeLimiter,
   asyncHandler(async (req, res) => {
     const user = req.user!;
     const room = await roomFromParams(req, res);
     if (!room) return;
+    if (!(await requireRoomMembership(req, res, room))) return;
 
     const file = await fileFromParams(req, res, room._id);
     if (!file) return;
 
     const allowed = await canUserEdit(user.id, room._id, file._id);
     if (!allowed) {
-      res.status(403).json({ error: "You do not have permission to edit this file." });
+      res
+        .status(403)
+        .json({ error: "You do not have permission to edit this file." });
       return;
     }
 
     const body = req.body || {};
     const nameChanged =
-      typeof body.name === "string" && body.name.trim().length > 0 && body.name.trim() !== file.name;
+      typeof body.name === "string" &&
+      body.name.trim().length > 0 &&
+      body.name.trim() !== file.name;
     const destinationParentId =
       body.parentId === undefined
         ? undefined
@@ -147,7 +184,8 @@ router.patch(
           ? null
           : String(body.parentId);
     const destinationChanged =
-      destinationParentId !== undefined && destinationParentId !== (file.parentId ?? null);
+      destinationParentId !== undefined &&
+      destinationParentId !== (file.parentId ?? null);
 
     if (nameChanged || destinationChanged) {
       const effectiveName =
@@ -155,7 +193,15 @@ router.patch(
           ? body.name.trim()
           : file.name;
       const effectiveParent =
-        destinationParentId !== undefined ? destinationParentId : (file.parentId ?? null);
+        destinationParentId !== undefined
+          ? destinationParentId
+          : (file.parentId ?? null);
+
+      const nameError = validateFileName(effectiveName);
+      if (nameError) {
+        res.status(400).json({ error: nameError });
+        return;
+      }
 
       const duplicate = await File.exists({
         roomId: room._id,
@@ -192,10 +238,14 @@ router.patch(
           let currentId: string | null = targetFolder.parentId;
           while (currentId) {
             if (currentId === file._id) {
-              res.status(400).json({ error: "Cannot move a folder into its own subfolder" });
+              res
+                .status(400)
+                .json({ error: "Cannot move a folder into its own subfolder" });
               return;
             }
-            const parentFolder = await File.findById(currentId).select("parentId").exec();
+            const parentFolder = await File.findById(currentId)
+              .select("parentId")
+              .exec();
             currentId = parentFolder?.parentId ?? null;
           }
         }
@@ -213,13 +263,23 @@ router.patch(
     }
 
     if (body.content !== undefined && file.type === "file") {
-      const content = typeof body.content === "string" ? body.content : String(body.content);
+      const content =
+        typeof body.content === "string" ? body.content : String(body.content);
+      if (byteLength(content) > LIMITS.fileContentBytes) {
+        res.status(413).json({
+          error: `File content must be ${LIMITS.fileContentBytes.toLocaleString()} bytes or smaller`,
+        });
+        return;
+      }
       file.content = content;
       file.yjsState = buildYjsState(content);
     }
 
     if (body.language !== undefined && file.type === "file") {
-      file.language = typeof body.language === "string" && body.language ? body.language : null;
+      file.language =
+        typeof body.language === "string" && body.language
+          ? body.language
+          : null;
     }
 
     await file.save();
@@ -231,23 +291,27 @@ router.patch(
     });
 
     res.json({ file: serialized });
-  })
+  }),
 );
 
 router.delete(
   "/:fileId",
   requireAuth,
+  writeLimiter,
   asyncHandler(async (req, res) => {
     const user = req.user!;
     const room = await roomFromParams(req, res);
     if (!room) return;
+    if (!(await requireRoomMembership(req, res, room))) return;
 
     const file = await fileFromParams(req, res, room._id);
     if (!file) return;
 
     const allowed = await canUserEdit(user.id, room._id, file._id);
     if (!allowed) {
-      res.status(403).json({ error: "You do not have permission to delete this file." });
+      res
+        .status(403)
+        .json({ error: "You do not have permission to delete this file." });
       return;
     }
 
@@ -257,23 +321,27 @@ router.delete(
     }
 
     res.json({ success: true, message: "Deleted successfully" });
-  })
+  }),
 );
 
 router.post(
   "/:fileId/duplicate",
   requireAuth,
+  writeLimiter,
   asyncHandler(async (req, res) => {
     const user = req.user!;
     const room = await roomFromParams(req, res);
     if (!room) return;
+    if (!(await requireRoomMembership(req, res, room))) return;
 
     const source = await fileFromParams(req, res, room._id);
     if (!source) return;
 
     const allowed = await canUserEdit(user.id, room._id, source._id);
     if (!allowed) {
-      res.status(403).json({ error: "You do not have permission to duplicate this item." });
+      res
+        .status(403)
+        .json({ error: "You do not have permission to duplicate this item." });
       return;
     }
 
@@ -300,21 +368,28 @@ router.post(
         let currentId: string | null = targetParentId;
         while (currentId) {
           if (currentId === source._id) {
-            res.status(400).json({ error: "Cannot copy a folder into its own subfolder" });
+            res
+              .status(400)
+              .json({ error: "Cannot copy a folder into its own subfolder" });
             return;
           }
-          const parentFolder = await File.findById(currentId).select("parentId").exec();
+          const parentFolder = await File.findById(currentId)
+            .select("parentId")
+            .exec();
           currentId = parentFolder?.parentId ?? null;
         }
       }
     }
 
-    const siblings = await File.find({ roomId: room._id, parentId: targetParentId })
+    const siblings = await File.find({
+      roomId: room._id,
+      parentId: targetParentId,
+    })
       .select("name")
       .exec();
     const newName = uniqueCopyName(
       source.name,
-      siblings.map((sibling) => sibling.name)
+      siblings.map((sibling) => sibling.name),
     );
 
     const createdFiles: FileRecord[] = [];
@@ -341,7 +416,10 @@ router.post(
       });
       createdFiles.push(rootFolder);
 
-      const copyChildren = async (originalParentId: string, newParentFolderId: string): Promise<void> => {
+      const copyChildren = async (
+        originalParentId: string,
+        newParentFolderId: string,
+      ): Promise<void> => {
         const children = await File.find({
           roomId: room._id,
           parentId: originalParentId,
@@ -385,7 +463,7 @@ router.post(
     }
 
     res.json({ files: serialized });
-  })
+  }),
 );
 
 export default router;

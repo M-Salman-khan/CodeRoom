@@ -9,8 +9,10 @@ import {
   type SerializedRoomBase,
   type UserSummary,
 } from "../lib/serializers";
+import { LIMITS, validateText } from "../lib/validation";
 import { buildYjsState } from "../lib/yjs-state";
 import { requireAuth } from "../middleware/auth";
+import { createRoomLimiter, joinRoomLimiter } from "../middleware/rate-limit";
 import { File } from "../models/file";
 import { Room } from "../models/room";
 import { RoomMember } from "../models/room-member";
@@ -37,7 +39,9 @@ router.get(
   asyncHandler(async (req, res) => {
     const userId = req.user!.id;
 
-    const memberships = await RoomMember.find({ userId }).select("roomId").exec();
+    const memberships = await RoomMember.find({ userId })
+      .select("roomId")
+      .exec();
     const memberRoomIds = memberships.map((membership) => membership.roomId);
 
     const rooms = await Room.find({
@@ -50,59 +54,90 @@ router.get(
     const owners = await User.find({ _id: { $in: ownerIds } })
       .select("_id username")
       .exec();
-    const ownerById = new Map(owners.map((owner) => [owner._id, serializeUser(owner)]));
+    const ownerById = new Map(
+      owners.map((owner) => [owner._id, serializeUser(owner)]),
+    );
 
     const summaries = await Promise.all(
-      rooms.map(async (room): Promise<SerializedRoomBase & {
-        owner: UserSummary;
-        _count: { members: number; files: number };
-      }> => {
-        const [memberCount, fileCount] = await Promise.all([
-          RoomMember.countDocuments({ roomId: room._id }),
-          File.countDocuments({ roomId: room._id }),
-        ]);
+      rooms.map(
+        async (
+          room,
+        ): Promise<
+          SerializedRoomBase & {
+            owner: UserSummary;
+            _count: { members: number; files: number };
+          }
+        > => {
+          const [memberCount, fileCount] = await Promise.all([
+            RoomMember.countDocuments({ roomId: room._id }),
+            File.countDocuments({ roomId: room._id }),
+          ]);
 
-        return {
-          ...serializeRoomBase(room),
-          owner: ownerById.get(room.ownerId) || { id: room.ownerId, username: "unknown" },
-          _count: { members: memberCount, files: fileCount },
-        };
-      })
+          return {
+            ...serializeRoomBase(room),
+            owner: ownerById.get(room.ownerId) || {
+              id: room.ownerId,
+              username: "unknown",
+            },
+            _count: { members: memberCount, files: fileCount },
+          };
+        },
+      ),
     );
 
     res.json({ rooms: summaries });
-  })
+  }),
 );
 
 router.post(
   "/",
   requireAuth,
+  createRoomLimiter,
   asyncHandler(async (req, res) => {
     const userId = req.user!.id;
     const body = req.body || {};
     const name = typeof body.name === "string" ? body.name.trim() : "";
 
-    if (!name) {
-      res.status(400).json({ error: "Room name is required" });
+    const nameValidation = validateText(name, {
+      field: "Room name",
+      max: LIMITS.roomName,
+      required: true,
+    });
+    if (!nameValidation.ok) {
+      res.status(400).json({ error: nameValidation.error });
       return;
     }
 
-    const description =
-      typeof body.description === "string" && body.description.trim().length > 0
-        ? body.description.trim()
-        : null;
-    const isPublic = body.isPublic !== undefined ? Boolean(body.isPublic) : true;
-    const password =
-      typeof body.password === "string" && body.password.trim().length > 0
-        ? body.password.trim()
-        : null;
+    const descriptionValidation = validateText(body.description, {
+      field: "Room description",
+      max: LIMITS.roomDescription,
+    });
+    if (!descriptionValidation.ok) {
+      res.status(400).json({ error: descriptionValidation.error });
+      return;
+    }
+
+    const passwordValidation = validateText(body.password, {
+      field: "Room password",
+      max: LIMITS.roomPassword,
+    });
+    if (!passwordValidation.ok) {
+      res.status(400).json({ error: passwordValidation.error });
+      return;
+    }
+
+    const finalName = nameValidation.value || "";
+    const description = descriptionValidation.value || null;
+    const isPublic =
+      body.isPublic !== undefined ? Boolean(body.isPublic) : true;
+    const password = passwordValidation.value || null;
 
     const roomCode = await generateUniqueRoomCode();
     const passwordHash = password ? await hashPassword(password) : null;
 
     const room = await Room.create({
       roomCode,
-      name,
+      name: finalName,
       description,
       passwordHash,
       isPublic,
@@ -117,8 +152,8 @@ router.post(
       allowedFiles: [],
     });
 
-    const mainContent = `// Welcome to ${name}!\n// Room Code: ${roomCode}\n\nconsole.log("Hello from CodeRoom!");\n`;
-    const readmeContent = `# ${name}\n\nRoom Code: \`${roomCode}\`\n\nInvite your team and start coding collaboratively in real-time.\n`;
+    const mainContent = `// Welcome to ${finalName}!\n// Room Code: ${roomCode}\n\nconsole.log("Hello from CodeRoom!");\n`;
+    const readmeContent = `# ${finalName}\n\nRoom Code: \`${roomCode}\`\n\nInvite your team and start coding collaboratively in real-time.\n`;
 
     await File.insertMany([
       {
@@ -147,14 +182,19 @@ router.post(
         owner: { id: userId, username: req.user!.username },
       },
     });
-  })
+  }),
 );
 
 router.get(
   "/:roomId",
   requireAuth,
+  joinRoomLimiter,
   asyncHandler(async (req, res) => {
     const userId = req.user!.id;
+    if (String(req.params.roomId).length > 64) {
+      res.status(404).json({ error: "This room could not be found." });
+      return;
+    }
     const room = await findRoomByKey(req.params.roomId);
 
     if (!room) {
@@ -194,14 +234,17 @@ router.get(
         });
       } catch (err) {
         // Unique index race: another request already joined the user.
-        const duplicate = err instanceof Error && "code" in err && (err as { code?: number }).code === 11000;
+        const duplicate =
+          err instanceof Error &&
+          "code" in err &&
+          (err as { code?: number }).code === 11000;
         if (!duplicate) throw err;
       }
     }
 
     const payload = await buildRoomDetails(room, userId);
     res.json(payload);
-  })
+  }),
 );
 
 router.patch(
@@ -216,18 +259,36 @@ router.patch(
       return;
     }
     if (room.ownerId !== userId) {
-      res.status(403).json({ error: "You don't have permission to modify this room." });
+      res
+        .status(403)
+        .json({ error: "You don't have permission to modify this room." });
       return;
     }
 
     const body = req.body || {};
 
-    if (typeof body.name === "string" && body.name.trim()) {
-      room.name = body.name.trim();
+    if (body.name !== undefined) {
+      const nameValidation = validateText(body.name, {
+        field: "Room name",
+        max: LIMITS.roomName,
+        required: true,
+      });
+      if (!nameValidation.ok) {
+        res.status(400).json({ error: nameValidation.error });
+        return;
+      }
+      room.name = nameValidation.value || room.name;
     }
     if (body.description !== undefined) {
-      const description = typeof body.description === "string" ? body.description.trim() : "";
-      room.description = description || null;
+      const descriptionValidation = validateText(body.description, {
+        field: "Room description",
+        max: LIMITS.roomDescription,
+      });
+      if (!descriptionValidation.ok) {
+        res.status(400).json({ error: descriptionValidation.error });
+        return;
+      }
+      room.description = descriptionValidation.value || null;
     }
     if (body.isPublic !== undefined) {
       room.isPublic = Boolean(body.isPublic);
@@ -235,8 +296,18 @@ router.patch(
     if (body.password !== undefined) {
       if (body.password === "") {
         room.passwordHash = null;
-      } else if (typeof body.password === "string" && body.password.trim()) {
-        room.passwordHash = await hashPassword(body.password.trim());
+      } else {
+        const passwordValidation = validateText(body.password, {
+          field: "Room password",
+          max: LIMITS.roomPassword,
+        });
+        if (!passwordValidation.ok) {
+          res.status(400).json({ error: passwordValidation.error });
+          return;
+        }
+        if (passwordValidation.value) {
+          room.passwordHash = await hashPassword(passwordValidation.value);
+        }
       }
     }
 
@@ -246,7 +317,7 @@ router.patch(
     broadcastToRoom(room._id, { type: "room:update", room: serialized });
 
     res.json({ success: true, room: serialized });
-  })
+  }),
 );
 
 router.delete(
@@ -261,20 +332,27 @@ router.delete(
       return;
     }
     if (room.ownerId !== userId) {
-      res.status(403).json({ error: "You don't have permission to delete this room." });
+      res
+        .status(403)
+        .json({ error: "You don't have permission to delete this room." });
       return;
     }
 
     await deleteRoomCascade(room._id);
     res.json({ success: true, message: "Room deleted" });
-  })
+  }),
 );
 
 router.post(
   "/:roomId/join",
   requireAuth,
+  joinRoomLimiter,
   asyncHandler(async (req, res) => {
     const userId = req.user!.id;
+    if (String(req.params.roomId).length > 64) {
+      res.status(404).json({ error: "This room could not be found." });
+      return;
+    }
     const room = await findRoomByKey(req.params.roomId);
 
     if (!room) {
@@ -284,6 +362,11 @@ router.post(
 
     const body = req.body || {};
     const password = typeof body.password === "string" ? body.password : "";
+
+    if (password.length > LIMITS.roomPassword) {
+      res.status(400).json({ error: "Incorrect room password." });
+      return;
+    }
 
     if (room.passwordHash && room.ownerId !== userId) {
       if (!password) {
@@ -303,7 +386,10 @@ router.post(
       }
     }
 
-    const existing = await RoomMember.findOne({ roomId: room._id, userId }).exec();
+    const existing = await RoomMember.findOne({
+      roomId: room._id,
+      userId,
+    }).exec();
     if (!existing) {
       await RoomMember.create({
         roomId: room._id,
@@ -319,7 +405,7 @@ router.post(
       roomId: room._id,
       roomCode: room.roomCode,
     });
-  })
+  }),
 );
 
 export default router;

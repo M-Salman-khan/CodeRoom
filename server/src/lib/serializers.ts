@@ -4,10 +4,16 @@ import type { PermissionRequestRecord } from "../models/permission-request";
 import type { RoomRecord } from "../models/room";
 import type { RoomMemberRecord, RoomRole } from "../models/room-member";
 import type { UserRecord } from "../models/user";
+import { buildInviteUrl } from "./public-url";
 
-export function iso(value: Date | string | null | undefined, fallback: Date = new Date()): string {
+export function iso(
+  value: Date | string | null | undefined,
+  fallback: Date = new Date(),
+): string {
   if (!value) return fallback.toISOString();
-  return value instanceof Date ? value.toISOString() : new Date(value).toISOString();
+  return value instanceof Date
+    ? value.toISOString()
+    : new Date(value).toISOString();
 }
 
 export interface UserSummary {
@@ -15,14 +21,20 @@ export interface UserSummary {
   username: string;
 }
 
-export function serializeUser(user: Pick<UserRecord, "_id" | "username">): UserSummary {
+export function serializeUser(
+  user: Pick<UserRecord, "_id" | "username">,
+): UserSummary {
   return { id: String(user._id), username: user.username };
 }
 
 export function serializeUserWithDate(
-  user: Pick<UserRecord, "_id" | "username" | "createdAt">
+  user: Pick<UserRecord, "_id" | "username" | "createdAt">,
 ): { id: string; username: string; createdAt: string } {
-  return { id: String(user._id), username: user.username, createdAt: iso(user.createdAt) };
+  return {
+    id: String(user._id),
+    username: user.username,
+    createdAt: iso(user.createdAt),
+  };
 }
 
 export interface SerializedFile {
@@ -60,7 +72,10 @@ export interface SerializedMessage {
   createdAt: string;
 }
 
-export function serializeMessage(message: MessageRecord, username: string): SerializedMessage {
+export function serializeMessage(
+  message: MessageRecord,
+  username: string,
+): SerializedMessage {
   return {
     id: String(message._id),
     roomId: message.roomId,
@@ -81,7 +96,10 @@ export interface SerializedMember {
   joinedAt: string;
 }
 
-export function serializeMember(member: RoomMemberRecord, username: string): SerializedMember {
+export function serializeMember(
+  member: RoomMemberRecord,
+  username: string,
+): SerializedMember {
   return {
     id: String(member._id),
     userId: member.userId,
@@ -105,7 +123,7 @@ export interface SerializedPendingRequest {
 export function serializePendingRequest(
   request: PermissionRequestRecord,
   username: string,
-  fileName: string | null
+  fileName: string | null,
 ): SerializedPendingRequest {
   return {
     id: String(request._id),
@@ -127,7 +145,7 @@ export interface SerializedMyPendingRequest {
 
 export function serializeMyPendingRequest(
   request: PermissionRequestRecord,
-  fileName: string | null
+  fileName: string | null,
 ): SerializedMyPendingRequest {
   return {
     id: String(request._id),
@@ -148,6 +166,8 @@ export interface SerializedRoomBase {
   ownerId: string;
   createdAt: string;
   updatedAt: string;
+  /** Canonical HTTPS invite URL, or null when PUBLIC_BASE_URL is unavailable. */
+  shareUrl: string | null;
 }
 
 export function serializeRoomBase(room: RoomRecord): SerializedRoomBase {
@@ -161,5 +181,6 @@ export function serializeRoomBase(room: RoomRecord): SerializedRoomBase {
     ownerId: room.ownerId,
     createdAt: iso(room.createdAt),
     updatedAt: iso(room.updatedAt),
+    shareUrl: buildInviteUrl(room.roomCode),
   };
 }

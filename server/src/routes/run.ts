@@ -1,9 +1,10 @@
 import { Router } from "express";
 import { asyncHandler } from "../lib/http";
-import { roomFromParams } from "../lib/route-helpers";
+import { requireRoomMembership, roomFromParams } from "../lib/route-helpers";
+import { LIMITS, byteLength } from "../lib/validation";
 import { requireAuth } from "../middleware/auth";
+import { runLimiter } from "../middleware/rate-limit";
 import { File } from "../models/file";
-import { RoomMember } from "../models/room-member";
 import {
   getRoomExecutionState,
   isRoomExecuting,
@@ -21,24 +22,34 @@ router.get(
   asyncHandler(async (req, res) => {
     const room = await roomFromParams(req, res);
     if (!room) return;
+    if (!(await requireRoomMembership(req, res, room))) return;
 
     res.json({ execution: getRoomExecutionState(room._id) });
-  })
+  }),
 );
 
 router.post(
   "/",
   requireAuth,
+  runLimiter,
   asyncHandler(async (req, res) => {
     const user = req.user!;
     const room = await roomFromParams(req, res);
     if (!room) return;
+    if (!(await requireRoomMembership(req, res, room))) return;
 
     const body = req.body || {};
     const action = typeof body.action === "string" ? body.action : "run";
     const fileId = typeof body.fileId === "string" ? body.fileId : null;
     const code = typeof body.code === "string" ? body.code : null;
     const isOwner = room.ownerId === user.id;
+
+    if (code !== null && byteLength(code) > LIMITS.runCodeBytes) {
+      res.status(413).json({
+        error: `Code must be ${LIMITS.runCodeBytes.toLocaleString()} bytes or smaller`,
+      });
+      return;
+    }
 
     if (action === "stop") {
       const stopResult = stopRoomExecution(room._id, user.id, isOwner);
@@ -65,17 +76,6 @@ router.post(
 
     if (!fileId) {
       res.status(400).json({ error: "fileId is required to run code" });
-      return;
-    }
-
-    const membership = await RoomMember.findOne({ roomId: room._id, userId: user.id })
-      .select("_id")
-      .exec();
-    const canRun = isOwner || Boolean(membership) || room.isPublic;
-    if (!canRun) {
-      res.status(403).json({
-        error: "You must be a member or have permission to run code in this room.",
-      });
       return;
     }
 
@@ -121,7 +121,7 @@ router.post(
             },
           });
         },
-        file.language || undefined
+        file.language || undefined,
       );
     } catch (err) {
       // Lost the mutex race between the check above and acquisition.
@@ -153,7 +153,7 @@ router.post(
     });
 
     res.json({ success: true, result });
-  })
+  }),
 );
 
 export default router;

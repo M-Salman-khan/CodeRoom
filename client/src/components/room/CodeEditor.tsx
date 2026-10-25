@@ -1,4 +1,11 @@
-import { useEffect, useRef, useState, useCallback, lazy, Suspense } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  useCallback,
+  lazy,
+  Suspense,
+} from "react";
 import { toast } from "sonner";
 import { formatCode, isFormatSupported } from "@/lib/format";
 import {
@@ -99,8 +106,16 @@ interface CodeEditorProps {
   executionResult?: ExecutionResult | null;
   onRequestPermission?: (fileId: string) => void;
   onCancelRequest?: (fileId: string) => void;
-  onGrantPermission?: (userId: string, fileId?: string | null, scope?: "file" | "room") => void;
-  onDeclinePermission?: (requestId?: string, userId?: string, fileId?: string | null) => void;
+  onGrantPermission?: (
+    userId: string,
+    fileId?: string | null,
+    scope?: "file" | "room",
+  ) => void;
+  onDeclinePermission?: (
+    requestId?: string,
+    userId?: string,
+    fileId?: string | null,
+  ) => void;
   onRunCode?: (fileId: string, code?: string) => void;
   onStopCode?: () => void;
   onSelectTab: (file: FileItem) => void;
@@ -109,7 +124,11 @@ interface CodeEditorProps {
   onCursorChange?: (line: number, column: number) => void;
   onSaveStatusChange?: (status: SaveStatus) => void;
   /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
-  onBroadcastRun?: (data: { filename: string; language: string; result: any }) => void;
+  onBroadcastRun?: (data: {
+    filename: string;
+    language: string;
+    result: any;
+  }) => void;
   mobileTab?: "files" | "editor" | "output" | "chat";
   onSwitchMobileTab?: (tab: "files" | "editor" | "output" | "chat") => void;
 }
@@ -118,7 +137,9 @@ interface DisposableEditor {
   _isDisposed?: boolean;
 }
 
-function isEditorDisposed(editorInstance: editor.IStandaloneCodeEditor | null): boolean {
+function isEditorDisposed(
+  editorInstance: editor.IStandaloneCodeEditor | null,
+): boolean {
   if (!editorInstance) return true;
   return Boolean((editorInstance as unknown as DisposableEditor)._isDisposed);
 }
@@ -158,6 +179,7 @@ export default function CodeEditor({
   const providerRef = useRef<WebsocketProvider | null>(null);
   const docRef = useRef<Y.Doc | null>(null);
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const yjsErrorToastShownRef = useRef(false);
 
   const [isMobileScreen, setIsMobileScreen] = useState(false);
 
@@ -187,12 +209,7 @@ export default function CodeEditor({
   // Keep Monaco sized correctly after tab switches, drawer changes and rotations.
   useEffect(() => {
     relayoutEditor();
-  }, [
-    activeFile?.id,
-    mobileTab,
-    isMobileScreen,
-    relayoutEditor,
-  ]);
+  }, [activeFile?.id, mobileTab, isMobileScreen, relayoutEditor]);
 
   useEffect(() => {
     const container = editorContainerRef.current;
@@ -246,19 +263,27 @@ export default function CodeEditor({
   }, [executionState?.isRunning]);
 
   const canEditCurrentFile = Boolean(
-    isOwner || canEdit || (activeFile && allowedFiles.includes(activeFile.id))
+    isOwner || canEdit || (activeFile && allowedFiles.includes(activeFile.id)),
   );
 
   const isRunnable = Boolean(
     activeFile &&
-      (/\.(js|jsx|ts|tsx|mjs|cjs|py|java|c|cpp|cc|cxx|sh)$/i.test(activeFile.name) ||
-        ["javascript", "typescript", "python", "java", "c", "cpp", "shell"].includes(
-          activeFile.language || ""
-        ))
+    (/\.(js|jsx|ts|tsx|mjs|cjs|py|java|c|cpp|cc|cxx|sh)$/i.test(
+      activeFile.name,
+    ) ||
+      [
+        "javascript",
+        "typescript",
+        "python",
+        "java",
+        "c",
+        "cpp",
+        "shell",
+      ].includes(activeFile.language || "")),
   );
   const isRunning = Boolean(executionState?.isRunning);
   const isCurrentRunner = Boolean(
-    isRunning && executionState?.userId === currentUser.id
+    isRunning && executionState?.userId === currentUser.id,
   );
 
   // AI review and error diagnosis state
@@ -295,7 +320,9 @@ export default function CodeEditor({
     if (!activeFile || !localResult) return;
     setIsAiDiagnosing(true);
     const code = editorRef.current?.getValue() ?? activeFile.content ?? "";
-    const errorText = [localResult.stderr, localResult.error].filter(Boolean).join("\n");
+    const errorText = [localResult.stderr, localResult.error]
+      .filter(Boolean)
+      .join("\n");
 
     try {
       const res = await apiFetch(`/api/rooms/${roomId}/ai`, {
@@ -367,7 +394,11 @@ export default function CodeEditor({
 
   const handleCopyOutput = () => {
     if (!localResult) return;
-    const fullOutput = [localResult.stdout, localResult.stderr, localResult.error]
+    const fullOutput = [
+      localResult.stdout,
+      localResult.stderr,
+      localResult.error,
+    ]
       .filter(Boolean)
       .join("\n");
     navigator.clipboard.writeText(fullOutput);
@@ -377,10 +408,13 @@ export default function CodeEditor({
 
   const handleFormatCode = async () => {
     const editorInstance = editorRef.current;
-    if (!editorInstance || isEditorDisposed(editorInstance) || !activeFile) return;
+    if (!editorInstance || isEditorDisposed(editorInstance) || !activeFile)
+      return;
 
     if (!isFormatSupported(activeFile.name)) {
-      toast.info("Auto-format is available for JS, TS, JSON, CSS, HTML, Markdown and YAML files.");
+      toast.info(
+        "Auto-format is available for JS, TS, JSON, CSS, HTML, Markdown and YAML files.",
+      );
       return;
     }
 
@@ -389,7 +423,9 @@ export default function CodeEditor({
       setFormattedFeedback(true);
       setTimeout(() => setFormattedFeedback(false), 1500);
     } catch {
-      toast.error("Could not format this file. Fix the syntax error and try again.");
+      toast.error(
+        "Could not format this file. Fix the syntax error and try again.",
+      );
     }
   };
 
@@ -400,7 +436,8 @@ export default function CodeEditor({
     if (isMobileScreen && onSwitchMobileTab) {
       onSwitchMobileTab("output");
     }
-    const currentCode = editorRef.current?.getValue() ?? activeFile.content ?? "";
+    const currentCode =
+      editorRef.current?.getValue() ?? activeFile.content ?? "";
     if (onRunCode) {
       onRunCode(activeFile.id, currentCode);
     }
@@ -408,13 +445,16 @@ export default function CodeEditor({
 
   const isRequestPending = Boolean(
     activeFile &&
-      myPendingRequests?.some(
-        (r) => (r.fileId === activeFile.id || !r.fileId) && r.status === "PENDING"
-      )
+    myPendingRequests?.some(
+      (r) =>
+        (r.fileId === activeFile.id || !r.fileId) && r.status === "PENDING",
+    ),
   );
 
   const relevantPendingRequests = isOwner
-    ? pendingRequests?.filter((r) => !r.fileId || r.fileId === activeFile?.id) || []
+    ? pendingRequests?.filter(
+        (r) => !r.fileId || r.fileId === activeFile?.id,
+      ) || []
     : [];
 
   useEffect(() => {
@@ -479,7 +519,10 @@ export default function CodeEditor({
     } catch {}
 
     const handleThemeEvent = (e: Event) => {
-      const customEvent = e as CustomEvent<{ theme: string; editorTheme: string }>;
+      const customEvent = e as CustomEvent<{
+        theme: string;
+        editorTheme: string;
+      }>;
       if (customEvent.detail?.editorTheme) {
         setEditorTheme(customEvent.detail.editorTheme);
       }
@@ -551,7 +594,10 @@ export default function CodeEditor({
 
     const onMouseMove = (moveEvent: MouseEvent) => {
       const delta = startY - moveEvent.clientY;
-      const newHeight = Math.max(100, Math.min(window.innerHeight * 0.75, startHeight + delta));
+      const newHeight = Math.max(
+        100,
+        Math.min(window.innerHeight * 0.75, startHeight + delta),
+      );
       setTerminalHeight(newHeight);
     };
 
@@ -623,7 +669,9 @@ export default function CodeEditor({
 
       try {
         const lang = getLanguageFromFilename(targetFile.name);
-        const modelUri = monaco.Uri.parse(`inmemory://coderoom/${roomId}/${targetFile.id}`);
+        const modelUri = monaco.Uri.parse(
+          `inmemory://coderoom/${roomId}/${targetFile.id}`,
+        );
         let model = monaco.editor.getModel(modelUri);
         if (model && !model.isDisposed()) {
           model.dispose();
@@ -665,7 +713,9 @@ export default function CodeEditor({
 
         const updateCursorStyles = () => {
           if (activeFileIdRef.current !== currentTargetFileId) return;
-          let styleTag = document.getElementById("yjs-cursor-styles") as HTMLStyleElement;
+          let styleTag = document.getElementById(
+            "yjs-cursor-styles",
+          ) as HTMLStyleElement;
           if (!styleTag) {
             styleTag = document.createElement("style");
             styleTag.id = "yjs-cursor-styles";
@@ -706,6 +756,16 @@ export default function CodeEditor({
           }
         });
 
+        provider.on("connection-error", () => {
+          if (yjsErrorToastShownRef.current) return;
+          yjsErrorToastShownRef.current = true;
+          toast.error("Live document connection failed", {
+            description:
+              "The WebSocket may be blocked by your network or proxy. CodeRoom requires wss:// for collaborative editing and has no polling fallback.",
+            duration: 8000,
+          });
+        });
+
         const yText = ydoc.getText("monaco");
 
         provider.on("sync", (isSynced: boolean) => {
@@ -720,7 +780,7 @@ export default function CodeEditor({
           model,
           new Set([editorInstance]),
           provider.awareness,
-          monaco
+          monaco,
         );
         bindingRef.current = binding;
 
@@ -740,21 +800,22 @@ export default function CodeEditor({
         console.error("Error setting up Monaco collaboration:", err);
       }
     },
-    [
-      roomId,
-      currentUser.username,
-      cleanupCollaboration,
-      updateSaveStatus,
-    ]
+    [roomId, currentUser.username, cleanupCollaboration, updateSaveStatus],
   );
 
   useEffect(() => {
     if (!activeFile) {
       cleanupCollaboration();
       activeFileIdRef.current = null;
-      if (editorRef.current && monacoRef.current && !isEditorDisposed(editorRef.current)) {
+      if (
+        editorRef.current &&
+        monacoRef.current &&
+        !isEditorDisposed(editorRef.current)
+      ) {
         try {
-          const emptyUri = monacoRef.current.Uri.parse("inmemory://coderoom-empty");
+          const emptyUri = monacoRef.current.Uri.parse(
+            "inmemory://coderoom-empty",
+          );
           const emptyModel =
             monacoRef.current.editor.getModel(emptyUri) ||
             monacoRef.current.editor.createModel("", "plaintext", emptyUri);
@@ -781,15 +842,18 @@ export default function CodeEditor({
 
   const handleEditorMount = (
     editorInstance: editor.IStandaloneCodeEditor,
-    monaco: typeof import("monaco-editor")
+    monaco: typeof import("monaco-editor"),
   ) => {
     editorRef.current = editorInstance;
     monacoRef.current = monaco;
 
     // Direct Monaco shortcut: Ctrl+Enter / Cmd+Enter runs program
-    editorInstance.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter, () => {
-      handleRun();
-    });
+    editorInstance.addCommand(
+      monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter,
+      () => {
+        handleRun();
+      },
+    );
 
     // Prettier-powered document formatter (toolbar button + Shift+Alt+F + format-on-paste)
     if (!formatProviderRef.current) {
@@ -810,7 +874,7 @@ export default function CodeEditor({
             async provideDocumentFormattingEdits(model) {
               const formatted = await formatCode(
                 model.getValue(),
-                activeFileNameRef.current
+                activeFileNameRef.current,
               );
               if (formatted === null) return [];
               return [
@@ -820,7 +884,7 @@ export default function CodeEditor({
                 },
               ];
             },
-          }
+          },
         );
     }
 
@@ -889,7 +953,9 @@ export default function CodeEditor({
                 }`}
               >
                 <div className="shrink-0">{getFileBadge(file.name)}</div>
-                <span className="truncate max-w-[120px] sm:max-w-[150px]">{file.name}</span>
+                <span className="truncate max-w-[120px] sm:max-w-[150px]">
+                  {file.name}
+                </span>
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
@@ -924,19 +990,25 @@ export default function CodeEditor({
             {saveStatus === "saved" && (
               <>
                 <Check className="h-3 w-3 text-emerald-400" />
-                <span className="hidden lg:inline text-emerald-400/90 font-mono">Saved</span>
+                <span className="hidden lg:inline text-emerald-400/90 font-mono">
+                  Saved
+                </span>
               </>
             )}
             {saveStatus === "saving" && (
               <>
                 <RefreshCw className="h-3 w-3 text-amber-400 animate-spin" />
-                <span className="hidden lg:inline text-amber-400 font-mono">Saving...</span>
+                <span className="hidden lg:inline text-amber-400 font-mono">
+                  Saving...
+                </span>
               </>
             )}
             {saveStatus === "offline" && (
               <>
                 <WifiOff className="h-3 w-3 text-red-400" />
-                <span className="hidden lg:inline text-red-400 font-mono">Offline</span>
+                <span className="hidden lg:inline text-red-400 font-mono">
+                  Offline
+                </span>
               </>
             )}
           </div>
@@ -964,7 +1036,9 @@ export default function CodeEditor({
               aria-label="Editor display settings"
               aria-expanded={showPreferences}
               className={`p-1.5 rounded-lg text-xs transition-colors ${
-                showPreferences ? "bg-surface text-foreground" : "text-muted hover:text-foreground hover:bg-surface"
+                showPreferences
+                  ? "bg-surface text-foreground"
+                  : "text-muted hover:text-foreground hover:bg-surface"
               }`}
             >
               <SlidersHorizontal className="h-3.5 w-3.5" />
@@ -1140,8 +1214,8 @@ export default function CodeEditor({
                 !activeFile
                   ? "No file open. Select a file to run."
                   : !isRunnable
-                  ? "Execution supported for JS, TS, Python, Java, C, C++, and Bash files"
-                  : "Run Program (Ctrl+Enter)"
+                    ? "Execution supported for JS, TS, Python, Java, C, C++, and Bash files"
+                    : "Run Program (Ctrl+Enter)"
               }
               className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold shadow-sm transition-all ${
                 !activeFile || !isRunnable
@@ -1162,7 +1236,9 @@ export default function CodeEditor({
           <div className="flex min-w-0 items-center gap-1.5 truncate">
             <span className="hidden sm:inline">root</span>
             <span className="hidden sm:inline">/</span>
-            <span className="text-foreground font-semibold truncate">{activeFile.name}</span>
+            <span className="text-foreground font-semibold truncate">
+              {activeFile.name}
+            </span>
             <span className="text-muted/50">&middot;</span>
             <span className="uppercase text-[10px] text-muted/90 shrink-0">
               {getLanguageFromFilename(activeFile.name)}
@@ -1236,7 +1312,8 @@ export default function CodeEditor({
           <div className="flex items-center gap-2 text-foreground">
             <BellRing className="h-4 w-4 animate-bounce text-accent shrink-0" />
             <span>
-              <strong>{relevantPendingRequests[0].username}</strong> requested permission to edit{" "}
+              <strong>{relevantPendingRequests[0].username}</strong> requested
+              permission to edit{" "}
               <span className="font-mono underline font-semibold text-accent">
                 {relevantPendingRequests[0].fileName || "this file"}
               </span>
@@ -1254,7 +1331,7 @@ export default function CodeEditor({
                   onGrantPermission?.(
                     relevantPendingRequests[0].userId,
                     relevantPendingRequests[0].fileId,
-                    "file"
+                    "file",
                   )
                 }
                 className="px-2.5 py-1 rounded-lg bg-primary hover:bg-accent-hover text-primary-foreground text-[11px] font-semibold transition-colors shadow-sm"
@@ -1267,7 +1344,7 @@ export default function CodeEditor({
                 onGrantPermission?.(
                   relevantPendingRequests[0].userId,
                   null,
-                  "room"
+                  "room",
                 )
               }
               className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-semibold transition-colors shadow-sm flex items-center gap-1"
@@ -1280,7 +1357,7 @@ export default function CodeEditor({
                 onDeclinePermission?.(
                   relevantPendingRequests[0].id,
                   relevantPendingRequests[0].userId,
-                  relevantPendingRequests[0].fileId
+                  relevantPendingRequests[0].fileId,
                 )
               }
               className="px-2.5 py-1 rounded-lg border border-border bg-surface hover:bg-surface-hover text-muted hover:text-foreground text-[11px] transition-colors"
@@ -1297,7 +1374,8 @@ export default function CodeEditor({
           <div className="flex items-center gap-2 text-amber-200">
             <Lock className="h-3.5 w-3.5 text-amber-400 shrink-0" />
             <span>
-              <strong>Read-Only:</strong> You need permission from the room owner to edit this file.
+              <strong>Read-Only:</strong> You need permission from the room
+              owner to edit this file.
             </span>
           </div>
 
@@ -1306,7 +1384,9 @@ export default function CodeEditor({
               <div className="flex items-center gap-2">
                 <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-500/20 border border-amber-500/40 text-amber-300 font-medium text-[11px] animate-pulse">
                   <Clock className="h-3 w-3" />
-                  <span>Request Sent &mdash; Waiting for Admin Approval...</span>
+                  <span>
+                    Request Sent &mdash; Waiting for Admin Approval...
+                  </span>
                 </span>
                 {onCancelRequest && (
                   <button
@@ -1373,9 +1453,12 @@ export default function CodeEditor({
             <div className="h-16 w-16 rounded-2xl bg-surface border border-border/80 flex items-center justify-center mb-3 shadow-inner">
               <FileCode className="h-8 w-8 text-muted/60" />
             </div>
-            <h3 className="text-base font-semibold text-foreground">No file open</h3>
+            <h3 className="text-base font-semibold text-foreground">
+              No file open
+            </h3>
             <p className="text-xs text-muted max-w-xs mt-1.5 leading-relaxed">
-              Select a file from the explorer on the left or click below to create a file.
+              Select a file from the explorer on the left or click below to
+              create a file.
             </p>
             {onNewFilePrompt && canEditCurrentFile && (
               <button
@@ -1390,14 +1473,15 @@ export default function CodeEditor({
       </div>
 
       {/* Terminal / Output Drawer */}
-      {((!isMobileScreen && isTerminalOpen) || (isMobileScreen && mobileTab === "output")) && (
+      {((!isMobileScreen && isTerminalOpen) ||
+        (isMobileScreen && mobileTab === "output")) && (
         <div
           style={{
             height: isMobileScreen
               ? "100%"
               : isTerminalMaximized
-              ? "80%"
-              : `${terminalHeight}px`,
+                ? "80%"
+                : `${terminalHeight}px`,
           }}
           className={`${
             isMobileScreen ? "flex-1 h-full" : "border-t border-border shrink-0"
@@ -1453,7 +1537,8 @@ export default function CodeEditor({
 
               {localResult?.runBy && (
                 <span className="text-[10px] text-muted hidden sm:inline truncate">
-                  by {localResult.runBy} {localResult.fileName ? `(${localResult.fileName})` : ""}
+                  by {localResult.runBy}{" "}
+                  {localResult.fileName ? `(${localResult.fileName})` : ""}
                 </span>
               )}
             </div>
@@ -1487,7 +1572,9 @@ export default function CodeEditor({
               {!isMobileScreen && (
                 <button
                   onClick={() => setIsTerminalMaximized(!isTerminalMaximized)}
-                  title={isTerminalMaximized ? "Restore size" : "Maximize terminal"}
+                  title={
+                    isTerminalMaximized ? "Restore size" : "Maximize terminal"
+                  }
                   className="p-1 rounded hover:bg-surface-hover text-muted hover:text-foreground transition-colors"
                 >
                   {isTerminalMaximized ? (
@@ -1520,20 +1607,26 @@ export default function CodeEditor({
             {isRunning && (
               <div className="flex items-center gap-2 text-amber-400">
                 <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                <span>Executing {executionState?.fileName} by {executionState?.username}...</span>
+                <span>
+                  Executing {executionState?.fileName} by{" "}
+                  {executionState?.username}...
+                </span>
               </div>
             )}
 
             {/* AI Diagnosis Prompt Banner if error occurred and not yet diagnosed */}
             {localResult &&
-              (localResult.exitCode !== 0 || localResult.stderr || localResult.error) &&
+              (localResult.exitCode !== 0 ||
+                localResult.stderr ||
+                localResult.error) &&
               !aiDiagnosis &&
               !isRunning && (
                 <div className="p-2.5 rounded-xl bg-secondary border border-border flex items-center justify-between gap-2.5 text-xs animate-in fade-in duration-150">
                   <div className="flex items-center gap-2 text-foreground min-w-0">
                     <Bot className="h-4 w-4 text-accent shrink-0" />
                     <span className="truncate">
-                      Execution failed. Would you like AI to explain and suggest a fix?
+                      Execution failed. Would you like AI to explain and suggest
+                      a fix?
                     </span>
                   </div>
                   <button
@@ -1562,13 +1655,15 @@ export default function CodeEditor({
                 <div className="flex items-center justify-between border-b border-border pb-2">
                   <div className="flex items-center gap-2">
                     <Sparkles className="h-4 w-4 text-accent" />
-                    <span className="font-semibold text-foreground">{aiDiagnosis.title}</span>
+                    <span className="font-semibold text-foreground">
+                      {aiDiagnosis.title}
+                    </span>
                     <span className="text-[10px] px-2 py-0.5 rounded-full bg-secondary text-foreground font-mono">
                       {aiDiagnosis.provider === "gemini"
                         ? "Google Gemini"
                         : aiDiagnosis.provider === "openai"
-                        ? "OpenAI"
-                        : "CodeRoom AI"}
+                          ? "OpenAI"
+                          : "CodeRoom AI"}
                     </span>
                     {aiDiagnosis.errorLine && (
                       <span className="text-[10px] text-amber-300 bg-amber-500/20 px-2 py-0.5 rounded-full font-mono">
@@ -1596,19 +1691,33 @@ export default function CodeEditor({
                     </span>
                     <div className="flex items-center gap-2">
                       <button
-                        onClick={() => handleCopyFix(aiDiagnosis.suggestedCode!)}
+                        onClick={() =>
+                          handleCopyFix(aiDiagnosis.suggestedCode!)
+                        }
                         className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-surface hover:bg-surface-hover text-foreground text-[11px] border border-border transition-colors"
                       >
-                        {copiedFix ? <Check className="h-3 w-3 text-emerald-400" /> : <Copy className="h-3 w-3" />}
+                        {copiedFix ? (
+                          <Check className="h-3 w-3 text-emerald-400" />
+                        ) : (
+                          <Copy className="h-3 w-3" />
+                        )}
                         <span>{copiedFix ? "Copied" : "Copy Fix"}</span>
                       </button>
                       {canEditCurrentFile && (
                         <button
-                          onClick={() => handleApplyFix(aiDiagnosis.suggestedCode!)}
+                          onClick={() =>
+                            handleApplyFix(aiDiagnosis.suggestedCode!)
+                          }
                           className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-primary hover:bg-accent-hover text-primary-foreground font-semibold text-[11px] shadow-sm transition-colors"
                         >
-                          {appliedFix ? <Check className="h-3 w-3 text-white" /> : <Wand2 className="h-3 w-3" />}
-                          <span>{appliedFix ? "Applied!" : "Apply to Editor"}</span>
+                          {appliedFix ? (
+                            <Check className="h-3 w-3 text-white" />
+                          ) : (
+                            <Wand2 className="h-3 w-3" />
+                          )}
+                          <span>
+                            {appliedFix ? "Applied!" : "Apply to Editor"}
+                          </span>
                         </button>
                       )}
                     </div>
@@ -1634,16 +1743,21 @@ export default function CodeEditor({
                     {localResult.error}
                   </pre>
                 )}
-                {!localResult.stdout && !localResult.stderr && !localResult.error && !isRunning && (
-                  <div className="text-muted italic text-xs">
-                    Program exited with code {localResult.exitCode ?? 0} with no console output.
-                  </div>
-                )}
+                {!localResult.stdout &&
+                  !localResult.stderr &&
+                  !localResult.error &&
+                  !isRunning && (
+                    <div className="text-muted italic text-xs">
+                      Program exited with code {localResult.exitCode ?? 0} with
+                      no console output.
+                    </div>
+                  )}
               </>
             ) : (
               !isRunning && (
                 <div className="text-muted text-xs">
-                  No execution output. Click &quot;Run&quot; above to execute the active file.
+                  No execution output. Click &quot;Run&quot; above to execute
+                  the active file.
                 </div>
               )
             )}
@@ -1661,8 +1775,12 @@ export default function CodeEditor({
                   <Sparkles className="h-4 w-4" />
                 </div>
                 <div>
-                  <h3 className="font-semibold text-sm text-foreground">AI Code Review</h3>
-                  <p className="text-[11px] text-muted">{activeFile?.name || "Active File"}</p>
+                  <h3 className="font-semibold text-sm text-foreground">
+                    AI Code Review
+                  </h3>
+                  <p className="text-[11px] text-muted">
+                    {activeFile?.name || "Active File"}
+                  </p>
                 </div>
               </div>
               <button
@@ -1677,9 +1795,12 @@ export default function CodeEditor({
               {isAiReviewing ? (
                 <div className="py-12 flex flex-col items-center justify-center gap-3 text-center text-muted">
                   <Loader2 className="h-8 w-8 animate-spin text-accent" />
-                  <p className="font-semibold text-foreground">AI is analyzing your code...</p>
+                  <p className="font-semibold text-foreground">
+                    AI is analyzing your code...
+                  </p>
                   <p className="text-xs max-w-xs text-muted">
-                    Reviewing code structure, edge cases, performance, and best practices.
+                    Reviewing code structure, edge cases, performance, and best
+                    practices.
                   </p>
                 </div>
               ) : aiReview ? (
@@ -1692,8 +1813,8 @@ export default function CodeEditor({
                       {aiReview.provider === "gemini"
                         ? "Google Gemini 2.0"
                         : aiReview.provider === "openai"
-                        ? "OpenAI"
-                        : "CodeRoom AI"}
+                          ? "OpenAI"
+                          : "CodeRoom AI"}
                     </span>
                   </div>
 

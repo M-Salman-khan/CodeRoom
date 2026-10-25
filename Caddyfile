@@ -1,0 +1,24 @@
+# CodeRoom production reverse proxy.
+#
+# DOMAIN must be the public hostname (for example coderoom.example.com). Caddy
+# obtains and renews the TLS certificate automatically, so the domain's DNS
+# A/AAAA record must point at this host and ports 80 and 443 must be reachable.
+{$DOMAIN} {
+	encode zstd gzip
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		Permissions-Policy "camera=(), microphone=(), geolocation=()"
+	}
+
+	# HTTP, SSE and WebSocket upgrades (/ws and /yjs) are proxied automatically.
+	reverse_proxy coderoom:3000
+
+	log {
+		output stdout
+		format console
+	}
+}

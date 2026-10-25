@@ -7,6 +7,7 @@ import * as decoding from "lib0/decoding";
 import { File } from "../models/file";
 import type { SessionUser } from "../lib/auth";
 import { canUserEdit } from "../lib/permissions";
+import { authorizeRoomKey } from "../lib/rooms";
 
 const MESSAGE_SYNC = 0;
 const MESSAGE_AWARENESS = 1;
@@ -36,7 +37,7 @@ function docKey(roomId: string, fileId: string): string {
 
 export async function getOrCreateDoc(
   roomId: string,
-  fileId: string
+  fileId: string,
 ): Promise<ManagedDoc | null> {
   const key = docKey(roomId, fileId);
   const existing = docs.get(key);
@@ -61,7 +62,7 @@ export async function getOrCreateDoc(
 async function loadDoc(
   key: string,
   roomId: string,
-  fileId: string
+  fileId: string,
 ): Promise<ManagedDoc | null> {
   const fileRecord = await File.findOne({ _id: fileId, roomId })
     .select("content yjsState")
@@ -90,7 +91,7 @@ async function loadDoc(
       doc.getText("monaco").insert(0, fileRecord.content);
       await File.updateOne(
         { _id: fileId },
-        { $set: { yjsState: Buffer.from(Y.encodeStateAsUpdate(doc)) } }
+        { $set: { yjsState: Buffer.from(Y.encodeStateAsUpdate(doc)) } },
       );
     }
   } catch (err) {
@@ -120,15 +121,19 @@ async function loadDoc(
   awareness.on(
     "update",
     (
-      { added, updated, removed }: { added: number[]; updated: number[]; removed: number[] },
-      origin: unknown
+      {
+        added,
+        updated,
+        removed,
+      }: { added: number[]; updated: number[]; removed: number[] },
+      origin: unknown,
     ) => {
       const changedClients = added.concat(updated, removed);
       const encoder = encoding.createEncoder();
       encoding.writeVarUint(encoder, MESSAGE_AWARENESS);
       encoding.writeVarUint8Array(
         encoder,
-        awarenessProtocol.encodeAwarenessUpdate(awareness, changedClients)
+        awarenessProtocol.encodeAwarenessUpdate(awareness, changedClients),
       );
       const message = encoding.toUint8Array(encoder);
 
@@ -137,7 +142,7 @@ async function loadDoc(
           sendBinary(client, message);
         }
       }
-    }
+    },
   );
 
   docs.set(key, managed);
@@ -154,7 +159,7 @@ async function saveDocToDb(managed: ManagedDoc): Promise<void> {
 
     await File.updateOne(
       { _id: managed.fileId },
-      { $set: { content: currentText, yjsState } }
+      { $set: { content: currentText, yjsState } },
     );
   } catch (err) {
     console.error(`Error autosaving file ${managed.fileId}:`, err);
@@ -227,11 +232,24 @@ function sendBinary(conn: WebSocket, message: Uint8Array): void {
 export async function handleYjsConnection(
   ws: WebSocket,
   docName: string,
-  user: SessionUser
+  user: SessionUser,
 ): Promise<void> {
   const separator = docName.indexOf("__");
-  const roomId = separator >= 0 ? docName.slice(0, separator) : docName;
-  const fileId = separator >= 0 ? docName.slice(separator + 2) : docName;
+  const roomKey = separator >= 0 ? docName.slice(0, separator) : "";
+  const fileId = separator >= 0 ? docName.slice(separator + 2) : "";
+
+  if (!roomKey || !fileId) {
+    ws.close(1008, "Invalid document path");
+    return;
+  }
+
+  // Only room owners and members may read or write a room's Yjs document.
+  const access = await authorizeRoomKey(user.id, roomKey);
+  if (!access) {
+    ws.close(1008, "Not a member of this room");
+    return;
+  }
+  const roomId = access.roomId;
 
   ws.binaryType = "nodebuffer";
 
@@ -275,8 +293,8 @@ export async function handleYjsConnection(
         encoder,
         awarenessProtocol.encodeAwarenessUpdate(
           managed.awareness,
-          Array.from(awarenessStates.keys())
-        )
+          Array.from(awarenessStates.keys()),
+        ),
       );
       sendBinary(ws, encoding.toUint8Array(encoder));
     }
@@ -292,7 +310,11 @@ export async function handleYjsConnection(
         case MESSAGE_SYNC: {
           const syncMessageType = decoding.peekVarUint(decoder);
           if (syncMessageType === syncProtocol.messageYjsUpdate) {
-            const allowed = await canUserEdit(user.id, managed.roomId, managed.fileId);
+            const allowed = await canUserEdit(
+              user.id,
+              managed.roomId,
+              managed.fileId,
+            );
             if (!allowed) {
               // Read-only collaborator: ignore any attempted document update.
               break;
@@ -330,8 +352,8 @@ export async function handleYjsConnection(
             encoder,
             awarenessProtocol.encodeAwarenessUpdate(
               managed.awareness,
-              Array.from(managed.awareness.getStates().keys())
-            )
+              Array.from(managed.awareness.getStates().keys()),
+            ),
           );
           sendBinary(ws, encoding.toUint8Array(encoder));
           break;
@@ -357,7 +379,7 @@ export async function handleYjsConnection(
       awarenessProtocol.removeAwarenessStates(
         managed.awareness,
         Array.from(clientAwarenessIds),
-        null
+        null,
       );
     }
 

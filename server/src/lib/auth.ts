@@ -16,13 +16,16 @@ export async function hashPassword(password: string): Promise<string> {
   return bcrypt.hash(password, salt);
 }
 
-export async function verifyPassword(password: string, hash: string): Promise<boolean> {
+export async function verifyPassword(
+  password: string,
+  hash: string,
+): Promise<boolean> {
   return bcrypt.compare(password, hash);
 }
 
 export async function createSessionToken(
   user: SessionUser,
-  rememberMe: boolean = false
+  rememberMe: boolean = false,
 ): Promise<string> {
   const expirationTime = rememberMe ? "30d" : "7d";
   return new SignJWT({ userId: user.id, username: user.username })
@@ -32,7 +35,9 @@ export async function createSessionToken(
     .sign(JWT_SECRET);
 }
 
-export async function verifySessionToken(token: string): Promise<SessionUser | null> {
+export async function verifySessionToken(
+  token: string,
+): Promise<SessionUser | null> {
   try {
     const { payload } = await jwtVerify(token, JWT_SECRET);
     if (!payload.userId || !payload.username) {
@@ -47,22 +52,38 @@ export async function verifySessionToken(token: string): Promise<SessionUser | n
   }
 }
 
-export function validateUsername(username: string): { valid: boolean; error?: string } {
+export function validateUsername(username: string): {
+  valid: boolean;
+  error?: string;
+} {
   if (!username || username.length < 3 || username.length > 30) {
-    return { valid: false, error: "Username must be between 3 and 30 characters" };
+    return {
+      valid: false,
+      error: "Username must be between 3 and 30 characters",
+    };
   }
   if (!/^[a-zA-Z0-9_-]+$/.test(username)) {
     return {
       valid: false,
-      error: "Username can only contain letters, numbers, underscores, and hyphens",
+      error:
+        "Username can only contain letters, numbers, underscores, and hyphens",
     };
   }
   return { valid: true };
 }
 
-export function validatePassword(password: string): { valid: boolean; error?: string } {
+export function validatePassword(password: string): {
+  valid: boolean;
+  error?: string;
+} {
   if (!password || password.length < 8) {
-    return { valid: false, error: "Password must be at least 8 characters long" };
+    return {
+      valid: false,
+      error: "Password must be at least 8 characters long",
+    };
+  }
+  if (password.length > 128) {
+    return { valid: false, error: "Password must be 128 characters or fewer" };
   }
   return { valid: true };
 }

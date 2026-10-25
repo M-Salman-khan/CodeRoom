@@ -20,7 +20,9 @@
     "docker:build": "docker build -t coderoom .",
     "docker:up": "docker compose up -d --build",
     "docker:down": "docker compose down",
-    "docker:logs": "docker compose logs -f"
+    "docker:logs": "docker compose logs -f",
+    "docker:prod": "docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build",
+    "docker:prod:down": "docker compose -f docker-compose.yml -f docker-compose.prod.yml down"
   },
   "devDependencies": {
     "concurrently": "^9.1.2"

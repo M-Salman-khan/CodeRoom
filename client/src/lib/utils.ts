@@ -5,16 +5,6 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-export function generateRoomCode(): string {
-  // Uppercase alphanumeric excluding confusing chars: 0, O, 1, I, L
-  const chars = "23456789ABCDEFGHJKMNPQRSTUVWXYZ";
-  let code = "";
-  for (let i = 0; i < 6; i++) {
-    code += chars.charAt(Math.floor(Math.random() * chars.length));
-  }
-  return code;
-}
-
 export function getLanguageFromFilename(filename: string): string {
   const ext = filename.split(".").pop()?.toLowerCase();
   switch (ext) {

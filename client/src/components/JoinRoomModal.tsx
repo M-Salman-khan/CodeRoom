@@ -107,14 +107,14 @@ export default function JoinRoomModal({
                 type="text"
                 value={roomCode}
                 onChange={(e) => setRoomCode(e.target.value.toUpperCase())}
-                placeholder="e.g. X7K29P"
+                placeholder="e.g. X7K29PQR"
                 required
                 maxLength={10}
                 className="pl-10 font-mono uppercase tracking-[0.2em]"
               />
             </div>
             <p className="text-[11px] text-muted-foreground">
-              Enter the 6-character room code shared by your collaborator.
+              Enter the room code shared by your collaborator.
             </p>
           </div>
 

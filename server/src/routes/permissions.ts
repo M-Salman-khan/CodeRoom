@@ -1,9 +1,10 @@
 import { Router } from "express";
 import { asyncHandler } from "../lib/http";
 import { buildRoomDetails } from "../lib/room-payload";
-import { roomFromParams } from "../lib/route-helpers";
+import { requireRoomMembership, roomFromParams } from "../lib/route-helpers";
 import { iso } from "../lib/serializers";
 import { requireAuth } from "../middleware/auth";
+import { permissionLimiter } from "../middleware/rate-limit";
 import { File } from "../models/file";
 import { PermissionRequest } from "../models/permission-request";
 import { RoomMember } from "../models/room-member";
@@ -17,6 +18,7 @@ router.get(
   asyncHandler(async (req, res) => {
     const room = await roomFromParams(req, res);
     if (!room) return;
+    if (!(await requireRoomMembership(req, res, room))) return;
 
     const details = await buildRoomDetails(room, req.user!.id);
 
@@ -28,16 +30,18 @@ router.get(
       pendingRequests: details.room.pendingRequests,
       myPendingRequests: details.myPendingRequests,
     });
-  })
+  }),
 );
 
 router.post(
   "/",
   requireAuth,
+  permissionLimiter,
   asyncHandler(async (req, res) => {
     const user = req.user!;
     const room = await roomFromParams(req, res);
     if (!room) return;
+    if (!(await requireRoomMembership(req, res, room))) return;
 
     const body = req.body || {};
     const action = typeof body.action === "string" ? body.action : "";
@@ -45,11 +49,14 @@ router.post(
 
     switch (action) {
       case "request": {
-        const fileId = typeof body.fileId === "string" && body.fileId ? body.fileId : null;
+        const fileId =
+          typeof body.fileId === "string" && body.fileId ? body.fileId : null;
 
         let fileName = "all files";
         if (fileId) {
-          const file = await File.findOne({ _id: fileId, roomId: room._id }).select("name").exec();
+          const file = await File.findOne({ _id: fileId, roomId: room._id })
+            .select("name")
+            .exec();
           if (file) fileName = file.name;
         }
 
@@ -89,7 +96,9 @@ router.post(
 
       case "grant": {
         if (!isOwner) {
-          res.status(403).json({ error: "Only the room owner can grant edit permission." });
+          res
+            .status(403)
+            .json({ error: "Only the room owner can grant edit permission." });
           return;
         }
 
@@ -100,10 +109,14 @@ router.post(
           return;
         }
 
-        const fileId = typeof body.fileId === "string" && body.fileId ? body.fileId : null;
+        const fileId =
+          typeof body.fileId === "string" && body.fileId ? body.fileId : null;
         const scope = typeof body.scope === "string" ? body.scope : "file";
 
-        const member = await RoomMember.findOne({ roomId: room._id, userId: targetUserId }).exec();
+        const member = await RoomMember.findOne({
+          roomId: room._id,
+          userId: targetUserId,
+        }).exec();
         if (!member) {
           res.status(404).json({ error: "Member not found in room" });
           return;
@@ -132,7 +145,7 @@ router.post(
             status: "PENDING",
             ...(scope === "room" || !fileId ? {} : { fileId }),
           },
-          { $set: { status: "APPROVED" } }
+          { $set: { status: "APPROVED" } },
         );
 
         const permission = {
@@ -152,7 +165,9 @@ router.post(
 
       case "revoke": {
         if (!isOwner) {
-          res.status(403).json({ error: "Only the room owner can revoke edit permission." });
+          res
+            .status(403)
+            .json({ error: "Only the room owner can revoke edit permission." });
           return;
         }
 
@@ -163,10 +178,14 @@ router.post(
           return;
         }
 
-        const fileId = typeof body.fileId === "string" && body.fileId ? body.fileId : null;
+        const fileId =
+          typeof body.fileId === "string" && body.fileId ? body.fileId : null;
         const scope = typeof body.scope === "string" ? body.scope : "file";
 
-        const member = await RoomMember.findOne({ roomId: room._id, userId: targetUserId }).exec();
+        const member = await RoomMember.findOne({
+          roomId: room._id,
+          userId: targetUserId,
+        }).exec();
         if (!member) {
           res.status(404).json({ error: "Member not found" });
           return;
@@ -206,18 +225,23 @@ router.post(
 
       case "decline": {
         if (!isOwner) {
-          res.status(403).json({ error: "Only the room owner can decline requests." });
+          res
+            .status(403)
+            .json({ error: "Only the room owner can decline requests." });
           return;
         }
 
-        const requestId = typeof body.requestId === "string" ? body.requestId : null;
-        const targetUserId = typeof body.targetUserId === "string" ? body.targetUserId : null;
-        const fileId = typeof body.fileId === "string" && body.fileId ? body.fileId : null;
+        const requestId =
+          typeof body.requestId === "string" ? body.requestId : null;
+        const targetUserId =
+          typeof body.targetUserId === "string" ? body.targetUserId : null;
+        const fileId =
+          typeof body.fileId === "string" && body.fileId ? body.fileId : null;
 
         if (requestId) {
           await PermissionRequest.updateOne(
             { _id: requestId, roomId: room._id },
-            { $set: { status: "DECLINED" } }
+            { $set: { status: "DECLINED" } },
           );
         } else if (targetUserId) {
           await PermissionRequest.updateMany(
@@ -227,7 +251,7 @@ router.post(
               status: "PENDING",
               ...(fileId ? { fileId } : {}),
             },
-            { $set: { status: "DECLINED" } }
+            { $set: { status: "DECLINED" } },
           );
         }
 
@@ -244,11 +268,17 @@ router.post(
       }
 
       case "cancel": {
-        const requestId = typeof body.requestId === "string" ? body.requestId : null;
-        const fileId = typeof body.fileId === "string" && body.fileId ? body.fileId : null;
+        const requestId =
+          typeof body.requestId === "string" ? body.requestId : null;
+        const fileId =
+          typeof body.fileId === "string" && body.fileId ? body.fileId : null;
 
         if (requestId) {
-          await PermissionRequest.deleteMany({ _id: requestId, userId: user.id, roomId: room._id });
+          await PermissionRequest.deleteMany({
+            _id: requestId,
+            userId: user.id,
+            roomId: room._id,
+          });
         } else {
           await PermissionRequest.deleteMany({
             roomId: room._id,
@@ -271,7 +301,7 @@ router.post(
       default:
         res.status(400).json({ error: "Invalid action" });
     }
-  })
+  }),
 );
 
 export default router;
