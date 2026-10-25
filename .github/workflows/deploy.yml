@@ -23,6 +23,10 @@ permissions:
 env:
   REGISTRY: ghcr.io
   NODE_VERSION: 22
+  # Canonical public origin for invite links, CORS, and secure cookies.
+  # Overrides empty/missing values in the VM's .env during deployment.
+  PUBLIC_BASE_URL: https://codingroom.duckdns.org
+  CLIENT_ORIGIN: https://codingroom.duckdns.org
 
 jobs:
   validate:
@@ -136,13 +140,15 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_ACTOR: ${{ github.actor }}
           DEPLOY_TAG: ${{ needs.build-and-push.outputs.image_tag }}
+          PUBLIC_BASE_URL: ${{ env.PUBLIC_BASE_URL }}
+          CLIENT_ORIGIN: ${{ env.CLIENT_ORIGIN }}
         with:
           host: ${{ secrets.VM_HOST }}
           username: ${{ secrets.VM_USER }}
           key: ${{ secrets.VM_SSH_KEY }}
           port: ${{ secrets.VM_PORT || 22 }}
           command_timeout: 10m
-          envs: GITHUB_TOKEN,GITHUB_ACTOR,DEPLOY_TAG
+          envs: GITHUB_TOKEN,GITHUB_ACTOR,DEPLOY_TAG,PUBLIC_BASE_URL,CLIENT_ORIGIN
           script: |
             set -e
 
@@ -168,7 +174,10 @@ jobs:
             sudo IMAGE_TAG="$DEPLOY_TAG" docker compose pull coderoom
 
             echo "==> Updating containers (MongoDB data volume is preserved)"
-            sudo IMAGE_TAG="$DEPLOY_TAG" docker compose up -d --remove-orphans --no-build
+            sudo IMAGE_TAG="$DEPLOY_TAG" \
+              PUBLIC_BASE_URL="$PUBLIC_BASE_URL" \
+              CLIENT_ORIGIN="$CLIENT_ORIGIN" \
+              docker compose up -d --remove-orphans --no-build
 
             echo "==> Waiting for container health check (up to 120s)..."
             HEALTHY=false
@@ -190,7 +199,10 @@ jobs:
 
               if [ -n "${PREV_IMAGE:-}" ]; then
                 echo "⚠️ Initiating automated rollback to previous image: $PREV_IMAGE"
-                sudo IMAGE_TAG="$PREV_IMAGE" docker compose up -d --no-build coderoom
+                sudo IMAGE_TAG="$PREV_IMAGE" \
+                  PUBLIC_BASE_URL="$PUBLIC_BASE_URL" \
+                  CLIENT_ORIGIN="$CLIENT_ORIGIN" \
+                  docker compose up -d --no-build coderoom
                 sleep 10
                 sudo docker compose ps
                 echo "⚠️ Rollback completed. Please inspect logs to diagnose failure."
@@ -213,8 +225,7 @@ jobs:
             CONFIG_JSON=$(curl -fsS http://localhost:3000/api/config || true)
             echo "$CONFIG_JSON"
 
-            EXPECTED_PUBLIC_URL=$(sed -n 's/^PUBLIC_BASE_URL=//p' .env | tail -n 1 | tr -d '"' | tr -d '\r')
-            EXPECTED_PUBLIC_URL="${EXPECTED_PUBLIC_URL%/}"
+            EXPECTED_PUBLIC_URL="${PUBLIC_BASE_URL%/}"
 
             if ! echo "$CONFIG_JSON" | grep -Fq '"inviteLinksEnabled":true'; then
               echo "❌ Invitation links are disabled. Set PUBLIC_BASE_URL to the public HTTPS origin in ~/CodeRoom/.env and redeploy."
