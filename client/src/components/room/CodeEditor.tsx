@@ -413,7 +413,7 @@ export default function CodeEditor({
 
     if (!isFormatSupported(activeFile.name)) {
       toast.info(
-        "Auto-format is available for JS, TS, JSON, CSS, HTML, Markdown and YAML files.",
+        "Auto-format is available for JS, TS, JSON, CSS, HTML, Markdown, YAML and Java files.",
       );
       return;
     }
@@ -869,6 +869,7 @@ export default function CodeEditor({
             "html",
             "markdown",
             "yaml",
+            "java",
           ],
           {
             async provideDocumentFormattingEdits(model) {

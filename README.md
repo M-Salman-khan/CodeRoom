@@ -58,6 +58,8 @@ disabled and only the room code is shown.
 ### Editor & terminal
 
 - Monaco editor with syntax highlighting for 15+ languages
+- Document formatting and format-on-paste via Prettier for
+  JS/TS/JSON/CSS/HTML/Markdown/YAML, plus Java through `prettier-plugin-java`
 - Resizable file explorer, editor, chat, and terminal panels
 - Single-runner room mutex: one person runs code at a time with live "who is running" status
 - Exit codes, elapsed time, clear output, stop execution, and output size/time limits

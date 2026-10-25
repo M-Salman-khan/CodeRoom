@@ -32,6 +32,7 @@
     "lib0": "^0.2.117",
     "lucide-react": "^1.40.0",
     "prettier": "^3.9.10",
+    "prettier-plugin-java": "2.11.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-router-dom": "^6.30.1",

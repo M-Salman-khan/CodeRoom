@@ -27,6 +27,7 @@ export const FORMATTABLE_EXTENSIONS = [
   "markdown",
   "yaml",
   "yml",
+  "java",
 ] as const;
 
 export function isFormatSupported(fileName: string): boolean {
@@ -93,6 +94,13 @@ export async function formatCode(code: string, fileName: string): Promise<string
       plugins.push(await import("prettier/plugins/yaml"));
       parser = "yaml";
       break;
+
+    case "java": {
+      const javaPlugin = await import("prettier-plugin-java");
+      plugins.push(javaPlugin.default as unknown as Plugin);
+      parser = "java";
+      break;
+    }
 
     default:
       return null;
