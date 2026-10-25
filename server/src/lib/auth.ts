@@ -6,6 +6,11 @@ const JWT_SECRET = new TextEncoder().encode(env.AUTH_SECRET);
 
 export const COOKIE_NAME = "coderoom_session";
 
+/** Sessions are fixed at one hour; there is no sliding or long-lived token. */
+export const SESSION_DURATION_SECONDS = 60 * 60;
+
+const SESSION_DURATION = "1h";
+
 export interface SessionUser {
   id: string;
   username: string;
@@ -25,13 +30,11 @@ export async function verifyPassword(
 
 export async function createSessionToken(
   user: SessionUser,
-  rememberMe: boolean = false,
 ): Promise<string> {
-  const expirationTime = rememberMe ? "30d" : "7d";
   return new SignJWT({ userId: user.id, username: user.username })
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
-    .setExpirationTime(expirationTime)
+    .setExpirationTime(SESSION_DURATION)
     .sign(JWT_SECRET);
 }
 
@@ -88,6 +91,6 @@ export function validatePassword(password: string): {
   return { valid: true };
 }
 
-export function cookieMaxAge(rememberMe: boolean): number {
-  return rememberMe ? 30 * 24 * 60 * 60 : 7 * 24 * 60 * 60;
+export function cookieMaxAge(): number {
+  return SESSION_DURATION_SECONDS;
 }

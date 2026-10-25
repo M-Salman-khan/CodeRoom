@@ -14,7 +14,6 @@ import { apiFetch, errorMessage, storeToken } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Checkbox } from "@/components/ui/checkbox";
 import {
   Card,
   CardContent,
@@ -32,7 +31,6 @@ export default function LoginPage() {
 
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
-  const [rememberMe, setRememberMe] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const usernameInputRef = useRef<HTMLInputElement>(null);
@@ -58,7 +56,6 @@ export default function LoginPage() {
         body: JSON.stringify({
           username: username.trim(),
           password,
-          rememberMe,
         }),
       });
 
@@ -162,17 +159,9 @@ export default function LoginPage() {
                 </div>
               </div>
 
-              <div className="flex items-center justify-between pt-1">
-                <label className="flex cursor-pointer select-none items-center gap-2">
-                  <Checkbox
-                    checked={rememberMe}
-                    onCheckedChange={(v) => setRememberMe(Boolean(v))}
-                  />
-                  <span className="text-xs text-muted-foreground">
-                    Remember me
-                  </span>
-                </label>
-              </div>
+              <p className="pt-1 text-xs text-muted-foreground">
+                For security, sessions expire after 1 hour.
+              </p>
 
               <Button
                 type="submit"

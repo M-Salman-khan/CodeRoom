@@ -27,6 +27,16 @@ function check(name, condition, detail = "") {
   }
 }
 
+function decodeJwtPayload(token) {
+  try {
+    return JSON.parse(
+      Buffer.from(token.split(".")[1], "base64url").toString("utf8"),
+    );
+  } catch {
+    return null;
+  }
+}
+
 async function request(
   method,
   path,
@@ -211,6 +221,12 @@ console.log("\nAuth");
     cookie: body?.token ? `coderoom_session=${body.token}` : "",
   };
   check("register returns a token", Boolean(owner.token));
+  const payload = decodeJwtPayload(owner.token);
+  check(
+    "register token expires after 1 hour",
+    Boolean(payload && payload.exp - payload.iat === 3600),
+    payload ? `ttl ${payload.exp - payload.iat}s` : "unreadable token",
+  );
 }
 
 {

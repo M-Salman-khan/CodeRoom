@@ -65,7 +65,7 @@ router.post(
       id: user._id,
       username: user.username,
     });
-    setSessionCookie(res, req, token, cookieMaxAge(false));
+    setSessionCookie(res, req, token, cookieMaxAge());
 
     res.status(201).json({
       success: true,
@@ -83,7 +83,6 @@ router.post(
     const username =
       typeof body.username === "string" ? body.username.trim() : "";
     const password = typeof body.password === "string" ? body.password : "";
-    const rememberMe = Boolean(body.rememberMe);
 
     if (!username || !password) {
       res.status(400).json({ error: "Username and password are required" });
@@ -108,11 +107,11 @@ router.post(
       return;
     }
 
-    const token = await createSessionToken(
-      { id: user._id, username: user.username },
-      rememberMe,
-    );
-    setSessionCookie(res, req, token, cookieMaxAge(rememberMe));
+    const token = await createSessionToken({
+      id: user._id,
+      username: user.username,
+    });
+    setSessionCookie(res, req, token, cookieMaxAge());
 
     res.json({
       success: true,
@@ -131,10 +130,9 @@ router.get(
       return;
     }
 
-    let token = extractRequestToken(req);
-    if (!token) {
-      token = await createSessionToken(user);
-    }
+    // Return the existing token only. Never mint a fresh one here, otherwise
+    // visiting the dashboard would silently extend a session past its 1h limit.
+    const token = extractRequestToken(req);
 
     res.json({ user, token });
   }),
