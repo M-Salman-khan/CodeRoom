@@ -1,20 +1,22 @@
 # See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 
 # dependencies
-/node_modules
+node_modules/
 /.pnp
 .pnp.js
 .yarn/install-state.gz
 
 # testing
 /coverage
+coverage/
 
-# next.js
+# production builds
+dist/
+build/
+client/dist/
+server/dist/
 /.next/
 /out/
-
-# production
-/build
 
 # misc
 .DS_Store
@@ -24,6 +26,7 @@
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+pnpm-debug.log*
 
 # local env files
 .env*.local
@@ -42,3 +45,5 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
+# archived legacy Next.js app (kept locally, never shipped)
+/legacy-next/

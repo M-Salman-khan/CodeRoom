@@ -27,32 +27,40 @@ jobs:
   validate:
     name: Pre-flight Verification
     runs-on: ubuntu-latest
-    env:
-      DATABASE_URL: "file:./dev.db"
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 9.15.9
-
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
-          cache: 'pnpm'
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            client/package-lock.json
+            server/package-lock.json
 
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+      - name: Install client dependencies
+        working-directory: client
+        run: npm install --no-audit --no-fund
 
-      - name: Validate Prisma Schema
-        run: pnpm exec prisma validate
+      - name: Typecheck & build client
+        working-directory: client
+        run: npm run build
+
+      - name: Install server dependencies
+        working-directory: server
+        run: npm install --no-audit --no-fund
+
+      - name: Typecheck & build server
+        working-directory: server
+        run: npm run build
 
       - name: Validate Docker Compose Configuration
         run: docker compose config -q
+        env:
+          AUTH_SECRET: ci-placeholder-secret-at-least-32-characters-long
 
   build-and-push:
     name: Build & Push Docker Image
@@ -143,8 +151,8 @@ jobs:
             echo "==> Pulling immutable image tag: $DEPLOY_TAG"
             sudo IMAGE_TAG="$DEPLOY_TAG" docker compose pull coderoom
 
-            echo "==> Updating container service with zero data loss"
-            sudo IMAGE_TAG="$DEPLOY_TAG" docker compose up -d --remove-orphans coderoom
+            echo "==> Updating containers (MongoDB data volume is preserved)"
+            sudo IMAGE_TAG="$DEPLOY_TAG" docker compose up -d --remove-orphans
 
             echo "==> Waiting for container health check (up to 60s)..."
             HEALTHY=false

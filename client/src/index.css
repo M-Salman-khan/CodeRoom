@@ -1,0 +1,362 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ==========================================================================
+   Geist variable fonts (self-hosted, no external CDN)
+   ========================================================================== */
+@font-face {
+  font-family: "Geist";
+  src: url("/fonts/GeistVF.woff") format("woff");
+  font-weight: 100 900;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Geist Mono";
+  src: url("/fonts/GeistMonoVF.woff") format("woff");
+  font-weight: 100 900;
+  font-display: swap;
+}
+
+:root {
+  --font-geist-sans: "Geist";
+  --font-geist-mono: "Geist Mono";
+}
+
+/* ==========================================================================
+   CodeRoom — Clean shadcn/ui design system
+   Monochrome neutral palette · light + dark only
+   ========================================================================== */
+
+/* Light */
+:root,
+.light {
+  --background: #ffffff;
+  --surface: #ffffff;
+  --surface-hover: #f4f4f5;
+  --panel: #fafafa;
+  --panel-header: #f4f4f5;
+  --border: #e4e4e7;
+  --foreground: #09090b;
+  --muted: #71717a;
+  --accent: #18181b;
+  --accent-hover: #3f3f46;
+  --success: #16a34a;
+  --card-bg: #ffffff;
+  --input-bg: #ffffff;
+  --input-border: #e4e4e7;
+  --card-border: #e4e4e7;
+  --glow-color: transparent;
+  --scrollbar-thumb: #d4d4d8;
+  --scrollbar-thumb-hover: #a1a1aa;
+
+  /* shadcn/ui tokens */
+  --card: #ffffff;
+  --card-foreground: #09090b;
+  --popover: #ffffff;
+  --popover-foreground: #09090b;
+  --primary: #18181b;
+  --primary-foreground: #fafafa;
+  --secondary: #f4f4f5;
+  --secondary-foreground: #18181b;
+  --muted-foreground: #71717a;
+  --destructive: #ef4444;
+  --destructive-foreground: #fafafa;
+  --input: #e4e4e7;
+  --ring: #18181b;
+}
+
+/* Dark */
+.dark {
+  --background: #09090b;
+  --surface: #111113;
+  --surface-hover: #1b1b1f;
+  --panel: #0b0b0d;
+  --panel-header: #111113;
+  --border: #27272a;
+  --foreground: #fafafa;
+  --muted: #a1a1aa;
+  --accent: #fafafa;
+  --accent-hover: #e4e4e7;
+  --success: #22c55e;
+  --card-bg: #111113;
+  --input-bg: #131316;
+  --input-border: #27272a;
+  --card-border: #27272a;
+  --glow-color: transparent;
+  --scrollbar-thumb: #3f3f46;
+  --scrollbar-thumb-hover: #52525b;
+
+  /* shadcn/ui tokens */
+  --card: #111113;
+  --card-foreground: #fafafa;
+  --popover: #131316;
+  --popover-foreground: #fafafa;
+  --primary: #fafafa;
+  --primary-foreground: #18181b;
+  --secondary: #27272a;
+  --secondary-foreground: #fafafa;
+  --muted-foreground: #a1a1aa;
+  --destructive: #ef4444;
+  --destructive-foreground: #fafafa;
+  --input: #27272a;
+  --ring: #a1a1aa;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  color: var(--foreground);
+  background: var(--background);
+  font-family: var(--font-geist-sans), -apple-system, BlinkMacSystemFont, "Segoe UI",
+    Roboto, Helvetica, Arial, sans-serif;
+  overflow-x: hidden;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+/* ==========================================================================
+   shadcn/ui base layer
+   ========================================================================== */
+@layer base {
+  * {
+    border-color: var(--border);
+  }
+
+  html {
+    color-scheme: dark;
+  }
+
+  html.light {
+    color-scheme: light;
+  }
+
+  :root {
+    --radius: 0.5rem;
+  }
+
+  /* Accessible, theme-aware focus ring shared by all shadcn primitives */
+  :focus-visible {
+    outline: 2px solid color-mix(in srgb, var(--ring) 60%, transparent);
+    outline-offset: 2px;
+  }
+}
+
+/* Minimal, neutral scrollbars */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb);
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-thumb-hover);
+}
+
+/* Subtle background grid & dot patterns */
+.bg-grid-pattern {
+  background-size: 32px 32px;
+  background-image: linear-gradient(
+      to right,
+      color-mix(in srgb, var(--foreground) 5%, transparent) 1px,
+      transparent 1px
+    ),
+    linear-gradient(
+      to bottom,
+      color-mix(in srgb, var(--foreground) 5%, transparent) 1px,
+      transparent 1px
+    );
+}
+
+.bg-dots-pattern {
+  background-size: 24px 24px;
+  background-image: radial-gradient(
+    color-mix(in srgb, var(--foreground) 10%, transparent) 1px,
+    transparent 1px
+  );
+}
+
+/* Flat card surface (kept for backwards compatibility with .glass-card) */
+.glass-card {
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  box-shadow: none;
+}
+
+.glass-card-hover {
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+.glass-card-hover:hover {
+  border-color: color-mix(in srgb, var(--foreground) 22%, var(--card-border));
+}
+
+/* Glow utilities neutralised for the flat shadcn look */
+.glow-accent,
+.glow-emerald {
+  box-shadow: none;
+}
+
+/* Developer input styling (legacy fallback) */
+@layer components {
+  .input-base {
+    background-color: var(--input-bg);
+    border: 1px solid var(--input-border);
+    color: var(--foreground);
+    border-radius: var(--radius);
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  }
+
+  .input-base::placeholder {
+    color: var(--muted);
+    opacity: 0.6;
+  }
+
+  .input-base:focus,
+  .input-base:focus-within {
+    outline: none;
+    border-color: var(--ring);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--ring) 25%, transparent);
+  }
+
+  .input-base:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+}
+
+/* Yjs Monaco Remote Cursor and Selection Styles */
+.yRemoteSelection {
+  opacity: 0.35;
+  transition: opacity 0.15s ease;
+}
+
+.yRemoteSelectionHead {
+  position: absolute;
+  box-sizing: border-box;
+  height: 100%;
+  border-left: 2px solid;
+}
+
+.yRemoteSelectionHead::after {
+  position: absolute;
+  top: -1.3em;
+  left: -2px;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: normal;
+  padding: 1px 5px;
+  border-radius: 4px;
+  color: #ffffff;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0.95;
+  z-index: 20;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5);
+}
+
+/* ==========================================================================
+   Neutral text selection
+   ========================================================================== */
+::selection {
+  background-color: color-mix(in srgb, var(--foreground) 22%, transparent) !important;
+  color: inherit !important;
+}
+
+::-moz-selection {
+  background-color: color-mix(in srgb, var(--foreground) 22%, transparent) !important;
+  color: inherit !important;
+}
+
+/* Monaco Editor local selected area */
+.monaco-editor .selected-text {
+  background-color: color-mix(in srgb, var(--foreground) 16%, transparent) !important;
+  border-radius: 2px !important;
+}
+
+.monaco-editor.focused .selected-text {
+  background-color: color-mix(in srgb, var(--foreground) 22%, transparent) !important;
+}
+
+/* Highlight of other occurrences of the selected word */
+.monaco-editor .selectionHighlight {
+  background-color: color-mix(in srgb, var(--foreground) 10%, transparent) !important;
+  border: 1px solid color-mix(in srgb, var(--foreground) 30%, transparent) !important;
+  border-radius: 2px !important;
+}
+
+.monaco-editor .wordHighlight,
+.monaco-editor .wordHighlightStrong {
+  background-color: color-mix(in srgb, var(--foreground) 12%, transparent) !important;
+  border: 1px solid color-mix(in srgb, var(--foreground) 30%, transparent) !important;
+  border-radius: 2px !important;
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  /* Dynamic viewport height — avoids the mobile browser URL-bar jump */
+  .h-dvh-screen {
+    height: 100vh;
+    height: 100dvh;
+  }
+
+  .min-h-dvh-screen {
+    min-height: 100vh;
+    min-height: 100dvh;
+  }
+
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+
+  .overscroll-none {
+    overscroll-behavior: none;
+  }
+
+  .pb-safe {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  .pt-safe {
+    padding-top: env(safe-area-inset-top);
+  }
+
+  .px-safe {
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+  }
+
+  .mb-safe {
+    margin-bottom: env(safe-area-inset-bottom);
+  }
+
+  .bottom-safe {
+    bottom: env(safe-area-inset-bottom);
+  }
+
+  /* Guaranteed 44px touch targets on touch devices */
+  .touch-target {
+    min-height: 44px;
+    min-width: 44px;
+  }
+}

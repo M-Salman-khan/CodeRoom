@@ -1,472 +1,469 @@
-# CodeRoom 🚀
+# CodeRoom
 
-> **"Code together. Anywhere."**
+> **Code together. Anywhere.**
 
-A lightweight, full-stack, collaborative code room designed for teams, classmates, and friends. CodeRoom combines the real-time synchronization of Google Docs, the power of Monaco Editor (VS Code), and built-in room chat into an intuitive, self-hosted web application accessible seamlessly over both **Local Area Networks (LAN)** and the **Public Internet**.
+CodeRoom is a self-hosted, real-time collaborative coding workspace: Monaco (VS Code's editor),
+Yjs CRDT synchronization, multi-language code execution, AI-assisted diagnostics, granular
+permissions, an integrated terminal, and room chat — in the browser, over LAN or the internet.
 
+The project previously ran on Next.js. It now uses a **traditional MERN server/client split**:
+
+- **`client/`** — Vite + React 18 SPA (static build)
+- **`server/`** — Express 4 + MongoDB (Mongoose) REST API + `ws` WebSockets
 
 ---
 
 ## Table of Contents
 
-- [Overview & Features](#overview--features)
-- [Technology Stack](#technology-stack)
-- [Architecture & Real-Time Sync](#architecture--real-time-sync)
-- [System Requirements](#system-requirements)
-- [Quick Start & Installation](#quick-start--installation)
-- [LAN Access (Local Wi-Fi / Ethernet)](#lan-access-local-wi-fi--ethernet)
-- [Docker Deployment](#docker-deployment)
-  - [Using Docker Compose (Recommended)](#1-using-docker-compose-recommended)
-  - [Using Standalone Docker](#2-using-standalone-docker)
-  - [Persistent Database Storage](#3-persistent-database-storage)
-  - [Docker Environment Variables](#4-docker-environment-variables)
-- [Internet Deployment & Reverse Proxy](#internet-deployment--reverse-proxy)
-  - [Nginx Configuration](#nginx-configuration-with-websockets)
-  - [Caddy Configuration](#caddy-configuration)
-- [Database & Seed Data](#database--seed-data)
-- [Testing & Verification](#testing--verification)
+- [Features](#features)
+- [Tech Stack](#tech-stack)
+- [Architecture](#architecture)
 - [Project Structure](#project-structure)
-- [License](#license)
+- [Requirements](#requirements)
+- [Quick Start](#quick-start)
+- [Environment Variables](#environment-variables)
+- [Scripts](#scripts)
+- [Real-Time Collaboration](#real-time-collaboration)
+- [Code Execution](#code-execution)
+- [AI Diagnostics](#ai-diagnostics)
+- [Permissions](#permissions)
+- [Responsive Workspace](#responsive-workspace)
+- [LAN Access](#lan-access)
+- [Docker Deployment](#docker-deployment)
+- [Reverse Proxy](#reverse-proxy)
+- [API Overview](#api-overview)
+- [Keyboard Shortcuts](#keyboard-shortcuts)
+- [Troubleshooting](#troubleshooting)
 
 ---
 
-## Overview & Features
+## Features
 
-- **Real-Time Code Collaboration**: True CRDT (Conflict-free Replicated Data Type) collaborative text editing powered by **Yjs** and **Monaco Editor**. Concurrent edits merge seamlessly without entire file replacements.
-- **Remote Cursors & Presence**: Collaborator cursors, selections, and username tags display in real time with unique deterministic colors.
-- **Hierarchical File Explorer**: Create, rename, delete, and switch between code files and folders with language auto-detection for 15+ programming languages (`.ts`, `.js`, `.py`, `.go`, `.rs`, `.cpp`, `.c`, `.java`, `.html`, `.css`, `.json`, `.md`, `.sql`, etc.).
-- **Built-in Room Chat**: Fast, real-time WebSocket room messaging with instant delivery, conversation history, and SQLite persistence.
-- **Smart Debounced Autosave**: Automatic persistence to SQLite without hitting the database on every keystroke.
-- **Self-Hosted & Data Ownership**: Zero reliance on Firebase, Supabase, or external cloud backends. All accounts, code files, rooms, and chat logs are stored locally on your own server.
-- **Session Authentication**: Secure HTTP-only cookies, password hashing with bcrypt, session expiration, and remember-me support.
-- **Room Access Control**: Public rooms and password-protected rooms with owner controls (rename, modify description, delete room).
-- **LAN + Internet Ready**: Binds to `0.0.0.0`, dynamically detects local network IPs, and provides one-click invite links with automatic host detection.
-- **Responsive Interface**: 3-panel developer workspace for desktop/laptop with collapsible panels, and a responsive tab system (`Files | Editor | Chat`) for tablets and mobile devices.
+### Real-time collaboration
+
+- Yjs CRDT document sync for every file, bound to Monaco through a custom binding
+- Remote cursors, selections, usernames, and deterministic user colors
+- Presence list, live connection status, automatic reconnects with exponential backoff
+- Debounced autosave to MongoDB plus immediate flush when the last editor disconnects
+
+### Editor & terminal
+
+- Monaco editor with syntax highlighting for 15+ languages
+- Resizable file explorer, editor, chat, and terminal panels
+- Single-runner room mutex: one person runs code at a time with live "who is running" status
+- Exit codes, elapsed time, clear output, stop execution, and output size/time limits
+- Focus (zen) mode and a mobile four-tab workspace: Files / Editor / Output / Chat
+
+### Files & rooms
+
+- Nested folders, drag-free move/cut/copy/paste, duplicate, rename, recursive delete
+- Public or password-protected rooms with 6-character join codes
+- Share links, room settings, member management, and owner controls
+- Dashboard with search, ownership filters, member/file counts, and quick join
+
+### Permissions
+
+- `OWNER`, `EDITOR`, `MEMBER` roles plus per-file edit grants
+- Interactive access requests: owners get live badges and can approve/decline instantly
+- Read-only enforcement on both the REST API and Yjs update path
+
+### AI assistance
+
+- Google Gemini and OpenAI support for error explanation, suggested fixes, and code review
+- Zero-config heuristic engine that parses Python/JS/TS/GCC stack traces without any API key
 
 ---
 
-## Technology Stack
+## Tech Stack
 
-- **Frontend**: Next.js 14 (App Router), React 18, TypeScript, Tailwind CSS, Monaco Editor (`@monaco-editor/react`), Lucide React
-- **Backend & WebSockets**: Node.js HTTP server, Next.js API Routes, `ws` WebSocket server handling `/ws` (chat & presence) and `/yjs` (CRDT code sync) on a single port
-- **Real-Time Engine**: Yjs, `y-protocols` (Sync & Awareness), Custom Monaco-Yjs CRDT binding
-- **Database**: Prisma ORM with SQLite (migratable to PostgreSQL)
-- **Authentication**: Stateless signed JWT session cookies with HTTP-only security and bcrypt password hashing
-- **Package Manager**: `pnpm`
+| Layer | Technology |
+| --- | --- |
+| Client | React 18, Vite, TypeScript, React Router, Tailwind CSS, Radix/shadcn UI, Monaco, Yjs, y-websocket |
+| Server | Node.js, Express 4, TypeScript, Mongoose 8, `ws`, Yjs, `y-protocols`, `jose`, bcryptjs |
+| Database | MongoDB 7 (local service, Atlas, or Docker) |
+| Real-time | Yjs CRDT over binary WebSocket + JSON room events |
+| Execution | Host child processes with timeout isolation, mutex, and Judge0 cloud fallback |
+| Deployment | Docker multi-stage image, Docker Compose (app + Mongo), GHCR + SSH CD workflow |
 
 ---
 
-## Architecture & Real-Time Sync
-
-CodeRoom attaches WebSocket servers to the same Node.js HTTP server that handles Next.js requests, allowing WebSockets and HTTP traffic to share a single port (default: `3000`):
+## Architecture
 
 ```text
-User Browser A                           User Browser B
-    │                                         │
-    ├─ Monaco Editor (y-monaco)               ├─ Monaco Editor (y-monaco)
-    ├─ Y.Doc (CRDT state)                     ├─ Y.Doc (CRDT state)
-    └─ WebSockets (/yjs & /ws)                └─ WebSockets (/yjs & /ws)
-             ▲                                         ▲
-             │                                         │
-             └──────────────────┬──────────────────────┘
-                                │
-                                ▼
-                   ┌─────────────────────────┐
-                   │   CodeRoom Node Server   │
-                   │   (Port 3000: HTTP/WS)   │
-                   ├─────────────────────────┤
-                   │ • Next.js Request Handler│
-                   │ • /yjs Yjs CRDT Server  │
-                   │ • /ws Room & Chat Events│
-                   │ • Debounced DB Autosave │
-                   └────────────┬────────────┘
-                                │
-                                ▼
-                   ┌─────────────────────────┐
-                   │    SQLite Database      │
-                   │ (Users, Rooms, Files,   │
-                   │    Messages, Members)   │
-                   └─────────────────────────┘
+Browser A                                              Browser B
+   │                                                      │
+   ├── React SPA (Vite build)                             │
+   ├── Monaco + Yjs Y.Doc ──────────┐                     │
+   │                                │                     │
+   │        WebSocket /yjs          │     WebSocket /yjs  │
+   │        (CRDT binary)           │                     │
+   ▼                                ▼                     ▼
+┌─────────────────────────────────────────────────────────────┐
+│                    Express server (port 3000)               │
+│  ├── REST API under /api/*                                  │
+│  ├── /ws     room events: presence, chat, files, execution  │
+│  ├── /yjs/*  CRDT document sync + awareness                 │
+│  ├── Static client build + SPA fallback                     │
+│  └── Code runner / AI service / debounced autosave          │
+└───────────────────────────┬─────────────────────────────────┘
+                            │ Mongoose
+                            ▼
+                    ┌───────────────┐
+                    │    MongoDB    │
+                    │ users, rooms, │
+                    │ files, msgs,  │
+                    │ permissions   │
+                    └───────────────┘
 ```
 
-### Real-Time Sync Flow
-
-1. When a user opens a file in a room, the client connects to `/yjs/${roomId}__${fileId}`.
-2. The server loads existing file contents from SQLite and synchronizes with Yjs binary protocol.
-3. Every keystroke is emitted as a binary CRDT update; conflicting edits resolve deterministically.
-4. Active collaborator selections and cursor locations are broadcast via Yjs Awareness protocol.
-5. Inactivity for 2 seconds automatically triggers a debounced save to the SQLite database.
-6. When the last client disconnects from a file, any pending changes are immediately flushed to the database.
+In development the Vite server (`:5173`) proxies `/api`, `/ws`, and `/yjs` to Express (`:3000`).
+In production Express serves `client/dist`, so HTTP and WebSockets share one port for simple LAN
+and reverse-proxy setups.
 
 ---
 
-## System Requirements
+## Project Structure
 
-- **Node.js**: `v20.x` or higher
-- **Package Manager**: `pnpm` (`v9.x` recommended)
-- **Operating System**: Linux, macOS, or Windows
+```text
+CodeRoom/
+├── client/                    # Vite + React SPA
+│   ├── public/fonts/          # Geist variable fonts
+│   ├── src/
+│   │   ├── pages/             # Landing, auth, dashboard, settings, room workspace
+│   │   ├── components/        # UI primitives + room-specific components
+│   │   ├── context/           # Theme provider
+│   │   ├── lib/               # API/auth helpers, utils, Monaco-Yjs binding
+│   │   └── main.tsx / App.tsx / index.css
+│   ├── vite.config.ts         # Dev proxy + @ alias
+│   └── package.json
+├── server/                    # Express + MongoDB + WebSockets
+│   ├── src/
+│   │   ├── routes/            # auth, user, rooms, files, messages, permissions, run, ai, compile
+│   │   ├── models/            # Mongoose schemas
+│   │   ├── middleware/        # JWT auth
+│   │   ├── ws/                # room-handler, yjs-handler
+│   │   ├── services/          # compiler, code-runner, ai-service, cascade
+│   │   ├── lib/               # auth, permissions, serializers, helpers
+│   │   ├── app.ts / index.ts
+│   │   └── seed.ts
+│   ├── .env.example
+│   └── package.json
+├── .github/workflows/deploy.yml
+├── Dockerfile
+├── docker-compose.yml
+└── MERN_SPEC.md               # migration contract (endpoint/DTO reference)
+```
 
 ---
 
-## Quick Start & Installation
+## Requirements
 
-### 1. Clone the repository
+- **Node.js 20+** (22 LTS recommended)
+- **npm 10+**
+- **MongoDB 6/7** running locally, in Docker, or a MongoDB Atlas URI
+- Optional, for local code execution: `python3`, `gcc`, `g++`, `javac`, `bash`
+  (missing runtimes fall back to the Judge0 cloud sandbox where supported)
 
-```bash
-cd /home/khansalman/Code/LAN-Share
-```
+---
 
-### 2. Install dependencies with pnpm
-
-```bash
-pnpm install
-```
-
-### 3. Configure environment variables
-
-Copy `.env.example` to `.env`:
+## Quick Start
 
 ```bash
+# 1. install root, client, and server dependencies
+npm run setup
+
+# 2. configure environment
 cp .env.example .env
+# edit .env if your MongoDB URI or AUTH_SECRET differ
+cp server/.env.example server/.env   # optional overrides
+
+# 3. start MongoDB locally (or use Docker / Atlas), then seed demo data (optional)
+npm run seed
+
+# 4. run Express (:3000) and Vite (:5173) together
+npm run dev
 ```
 
-Review configuration in `.env`:
+Open **http://localhost:5173**.
 
-```env
-DATABASE_URL="file:./dev.db"
-AUTH_SECRET="your-secure-random-secret-key"
-PORT=3000
-HOST=0.0.0.0
-```
+Demo accounts after seeding: `demo` / `password123` and `collaborator` / `password123`
+(room code `DEMO01`).
 
-### 4. Initialize Database
-
-Push the Prisma schema to generate the local SQLite database and seed initial demo data:
+### Production build
 
 ```bash
-pnpm run db:push
-pnpm run db:seed
+npm run build     # builds client/dist, then server/dist
+npm start         # Express serves the SPA + API on :3000
 ```
-
-This creates demo accounts:
-- Username: `demo` / Password: `password123`
-- Username: `collaborator` / Password: `password123`
-- Demo room code: `DEMO01`
-
-### 5. Build and Start the Application
-
-Build the optimized Next.js production build:
-
-```bash
-pnpm run build
-```
-
-Start the CodeRoom server:
-
-```bash
-pnpm start
-```
-
-Or for development with live reload:
-
-```bash
-pnpm run dev
-```
-
-Open your browser at `http://localhost:3000`.
 
 ---
 
-## LAN Access (Local Wi-Fi / Ethernet)
+## Environment Variables
 
-The server binds to `0.0.0.0`, enabling anyone connected to your local network (Wi-Fi or Ethernet) to access CodeRoom directly without an internet connection.
-
-### 1. Find your server's LAN IP address on Linux
-
-Run:
-
-```bash
-hostname -I
-# or
-ip addr show | grep inet
-```
-
-Example output:
-
-```text
-192.168.1.105
-```
-
-### 2. Start the server
-
-```bash
-pnpm start
-```
-
-When CodeRoom starts, it automatically outputs all detected network IP addresses in your terminal:
-
-```text
-=======================================================
-🚀 CodeRoom Server is running!
-📡 Local:    http://localhost:3000
-🌐 Network:  http://192.168.1.105:3000
-⚡ Real-time WebSockets attached to port 3000
-=======================================================
-```
-
-### 3. Connect from other devices on the same Wi-Fi
-
-Open any phone, laptop, or tablet connected to the same Wi-Fi network and navigate to:
-
-```text
-http://192.168.1.105:3000
-```
-
-### 4. Share Room
-
-Inside any room, click the **Share** button in the top navigation bar. CodeRoom dynamically detects the current browser host and generates a one-click invite link (e.g. `http://192.168.1.105:3000/room/X7K29P`) and a 6-character room code.
-
----
-
-## Docker Deployment 🐳
-
-CodeRoom provides a production-optimized multi-stage `Dockerfile` and `docker-compose.yml` configuration with:
-- Multi-stage build (`node:20-bookworm-slim`) for minimal image footprint.
-- Built-in SQLite persistence via Docker volumes (`/app/data`).
-- Automatic database table generation (`prisma db push`) on startup via `docker-entrypoint.sh`.
-- Non-root execution (`node` user) for container security.
-- Integrated Docker health check (`curl http://localhost:3000/`).
-- Built-in WebSocket and HTTP support on a single exposed port.
-
-### 1. Using Docker Compose (Recommended)
-
-1. **Configure Environment** (Optional):
-   ```bash
-   cp .env.docker.example .env
-   ```
-   You can customize `AUTH_SECRET` (at least 32 random characters), `PORT`, and whether to seed demo accounts (`SEED_DATABASE=true`).
-
-2. **Build and Run**:
-   ```bash
-   docker compose up -d --build
-   ```
-   Or using the npm helper script:
-   ```bash
-   pnpm run docker:up
-   ```
-
-3. **Check Logs & Status**:
-   ```bash
-   docker compose logs -f
-   # or
-   pnpm run docker:logs
-   ```
-
-4. **Stop Container**:
-   ```bash
-   docker compose down
-   # or
-   pnpm run docker:down
-   ```
-
----
-
-### 2. Using Standalone Docker
-
-1. **Build the Image**:
-   ```bash
-   docker build -t coderoom:latest .
-   ```
-
-2. **Create a Persistent Volume**:
-   ```bash
-   docker volume create coderoom-data
-   ```
-
-3. **Run the Container**:
-   ```bash
-   docker run -d \
-     --name coderoom \
-     --restart unless-stopped \
-     -p 3000:3000 \
-     -v coderoom-data:/app/data \
-     -e AUTH_SECRET="your-super-secure-random-secret-key-at-least-32-chars" \
-     -e NEXT_PUBLIC_APP_URL="http://localhost:3000" \
-     -e SEED_DATABASE="false" \
-     coderoom:latest
-   ```
-
----
-
-### 3. Persistent Database Storage
-
-CodeRoom stores SQLite data inside `/app/data/coderoom.db` within the container.
-- When using Docker Compose, the named volume `coderoom-data` is mounted to `/app/data`.
-- All registered users, rooms, collaborative files, and chat messages are preserved across container updates and rebuilds.
-- To inspect or backup the database:
-  ```bash
-  docker cp coderoom:/app/data/coderoom.db ./coderoom-backup.db
-  ```
-
----
-
-### 4. Docker Environment Variables
+The server reads `server/.env` first, then falls back to the repository-root `.env`.
 
 | Variable | Default | Description |
-|---|---|---|
-| `PORT` | `3000` | Port the Node.js server listens on |
-| `HOST` | `0.0.0.0` | Host interface to bind to (`0.0.0.0` enables LAN access) |
-| `DATABASE_URL` | `file:/app/data/coderoom.db` | SQLite database file location inside container |
-| `AUTH_SECRET` | `coderoom-lan-super-secret...` | Secret key for signing session JWT tokens (min 32 chars) |
-| `NEXT_PUBLIC_APP_URL` | `http://localhost:3000` | Base URL used for invite links and QR codes |
-| `SEED_DATABASE` | `false` | Set to `true` on initial launch to create demo users (`demo`, `collaborator`) and room `DEMO01` |
+| --- | --- | --- |
+| `MONGODB_URI` | `mongodb://127.0.0.1:27017/coderoom` | Mongo connection string |
+| `AUTH_SECRET` | dev fallback | JWT signing secret (≥32 chars in production) |
+| `PORT` | `3000` | Express/WebSocket port |
+| `HOST` | `0.0.0.0` | Bind address (use `0.0.0.0` for LAN) |
+| `CLIENT_ORIGIN` | `http://localhost:5173` | Allowed CORS origin in production |
+| `GEMINI_API_KEY` | empty | Enables Gemini diagnostics/review |
+| `OPENAI_API_KEY` | empty | Enables OpenAI diagnostics/review |
+| `SEED_DATABASE` | `false` | Docker entrypoint seeds demo data when `true` |
+
+The client requires no build-time environment variables: it uses same-origin `/api`, `/ws`, and
+`/yjs` (proxied by Vite in development).
 
 ---
 
-### 5. LAN Access with Docker
+## Scripts
 
-To allow phones, tablets, and other laptops on your local Wi-Fi to connect:
-- Ensure port `3000` is opened in your host's firewall (e.g. `sudo ufw allow 3000`).
-- Connect using `http://<HOST-LAN-IP>:3000` (find your IP with `hostname -I`).
-- *(Optional on Linux)*: To let the Node.js process directly detect and print your local network IPs in the console banner, uncomment `network_mode: host` in `docker-compose.yml` and comment out the `ports:` block.
+Run from the repository root:
+
+| Script | What it does |
+| --- | --- |
+| `npm run setup` | Installs root, server, and client dependencies |
+| `npm run dev` | Runs Express (`:3000`) and Vite (`:5173`) together |
+| `npm run dev:server` | Server only (`tsx watch`) |
+| `npm run dev:client` | Client only (Vite) |
+| `npm run build` | Builds the client, then compiles the server |
+| `npm start` | Starts the compiled production server |
+| `npm run seed` | Seeds demo users, room, files, and chat |
+| `npm run typecheck` | Typechecks both packages |
+| `npm run docker:up` | Builds and starts app + MongoDB |
+| `npm run docker:down` | Stops the stack |
+| `npm run docker:logs` | Follows container logs |
+
+Within `server/`: `dev`, `build`, `start`, `typecheck`, `seed`.
+Within `client/`: `dev`, `build`, `preview`, `typecheck`.
 
 ---
 
-## Internet Deployment & Reverse Proxy
+## Real-Time Collaboration
 
-CodeRoom is self-contained and can be deployed to any VPS (Ubuntu, Debian, etc.).
+1. Opening a file connects to `/yjs/<roomId>__<fileId>` with a JWT (`?token=`, header, or cookie).
+2. The server restores `yjsState` (or seeds from `content`) and performs the Yjs sync handshake.
+3. Edits are exchanged as binary CRDT updates; awareness carries cursors, names, and colors.
+4. Updates from users without file edit permission are dropped server-side (read-only enforcement).
+5. Changes autosave after 2s of inactivity, on last disconnect, and on graceful shutdown.
+6. `/ws?roomId=…` carries presence, chat, file-tree events, permission changes, and execution state.
 
-### 1. Run as a Systemd Service
+---
 
-Create `/etc/systemd/system/coderoom.service`:
+## Code Execution
 
-```ini
-[Unit]
-Description=CodeRoom Collaborative Platform
-After=network.target
+- Room-wide mutex guarantees a single running process per room.
+- 10-second timeout, 500 KB output cap, and automatic temp-directory cleanup.
+- Local runtimes: Node/tsx, Python 3, Java, C, C++, Bash.
+- If a runtime is missing, supported languages fall back to the Judge0 CE cloud sandbox.
+- The run/stop result is broadcast to every room member in real time.
 
-[Service]
-Type=simple
-User=ubuntu
-WorkingDirectory=/var/www/coderoom
-ExecStart=/usr/bin/pnpm start
-Restart=always
-RestartSec=5
-Environment=NODE_ENV=production
-Environment=PORT=3000
-Environment=HOST=0.0.0.0
+---
 
-[Install]
-WantedBy=multi-user.target
-```
+## AI Diagnostics
 
-Enable and start:
+`POST /api/rooms/:roomId/ai` supports:
+
+- `action: "debug"` — explain a runtime/compile error, locate the failing line, suggest a fix
+- `action: "review"` — review the active file for bugs, style, and improvements
+
+Provider order: Gemini → OpenAI → built-in heuristic parser. No key is required for basic
+diagnostics.
+
+---
+
+## Permissions
+
+| Capability | OWNER | EDITOR | MEMBER |
+| --- | --- | --- | --- |
+| Read files / chat / run code | yes | yes | yes |
+| Edit all files | yes | yes | no |
+| Edit granted files | yes | yes | if granted |
+| Grant/revoke/decline access | yes | no | no |
+| Rename/delete room | yes | no | no |
+
+Members can request edit access per file or for the whole room. Owners receive the request in
+real time and can approve or decline it from the permissions dialog.
+
+---
+
+## Responsive Workspace
+
+- Mobile bottom tabs: **Files / Editor / Output / Chat** with unread chat badge
+- Side panels become slide-over drawers on small screens instead of squeezing the editor
+- `100dvh` layout with safe-area padding, 44px touch targets, and scrollable dialogs
+- Touch-friendly Monaco (word wrap, adaptive font size) and auto-switch to Output on run
+- Dashboard/search/filters collapse cleanly; landing and auth pages are usable down to 320px
+
+---
+
+## LAN Access
+
+1. Set `HOST=0.0.0.0` and start the server.
+2. Find the host machine's LAN IP (`ipconfig` / `ip addr`).
+3. Open `http://<lan-ip>:3000` from another device.
+
+The server prints all detected LAN URLs at startup. Allow port 3000 through the host firewall.
+In development, open `http://<lan-ip>:5173` and ensure the Vite proxy targets the host's `:3000`.
+
+---
+
+## Docker Deployment
 
 ```bash
-sudo systemctl daemon-reload
-sudo systemctl enable --now coderoom
+cp .env.docker.example .env
+# set AUTH_SECRET, CLIENT_ORIGIN, optional AI keys
+
+docker compose up -d --build
+# app:   http://localhost:3000
+# mongo: internal service with the coderoom-mongo volume
 ```
 
-### 2. Nginx Configuration (with WebSockets)
+Useful commands:
 
-Create `/etc/nginx/sites-available/coderoom`:
+```bash
+docker compose logs -f coderoom
+docker compose down
+docker compose up -d --build        # rebuild after code changes
+SEED_DATABASE=true docker compose up -d   # seed demo data
+```
+
+The Compose stack runs MongoDB 7 with a named volume (`coderoom-mongo`). To use Atlas instead,
+set `MONGODB_URI` in `.env` and remove or ignore the `mongo` service.
+
+---
+
+## Reverse Proxy
+
+Example Nginx configuration (WebSocket upgrades included):
 
 ```nginx
-map $http_upgrade $connection_upgrade {
-    default upgrade;
-    ''      close;
-}
-
 server {
-    listen 80;
-    server_name coderoom.yourdomain.com;
+    listen 443 ssl http2;
+    server_name coderoom.example.com;
+
+    ssl_certificate     /etc/letsencrypt/live/coderoom.example.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/coderoom.example.com/privkey.pem;
 
     location / {
         proxy_pass http://127.0.0.1:3000;
         proxy_http_version 1.1;
-
-        # WebSocket support
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection $connection_upgrade;
-
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
 
-        # WebSocket timeouts
-        proxy_read_timeout 86400s;
-        proxy_send_timeout 86400s;
+        # WebSockets: /ws and /yjs
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_read_timeout 3600s;
+        proxy_send_timeout 3600s;
     }
 }
 ```
 
-Enable HTTPS with Certbot:
-
-```bash
-sudo certbot --nginx -d coderoom.yourdomain.com
-```
-
-### 3. Caddy Configuration
-
-If using Caddy, WebSocket upgrade is handled automatically:
+Caddy equivalent:
 
 ```caddy
-coderoom.yourdomain.com {
+coderoom.example.com {
     reverse_proxy 127.0.0.1:3000
 }
 ```
 
+Set `CLIENT_ORIGIN=https://coderoom.example.com` in production.
+
 ---
 
-## Database & Seed Data
+## API Overview
 
-Prisma manages the SQLite database schema in `prisma/schema.prisma`.
+Full request/response shapes live in [`MERN_SPEC.md`](./MERN_SPEC.md). Summary:
 
-### Available Database Commands
+| Area | Endpoints |
+| --- | --- |
+| Auth | `POST /api/auth/register`, `POST /api/auth/login`, `GET /api/auth/me`, `POST /api/auth/logout` |
+| User | `GET/PATCH /api/user` |
+| Rooms | `GET/POST /api/rooms`, `GET/PATCH/DELETE /api/rooms/:id`, `POST /api/rooms/:id/join` |
+| Files | `GET/POST /api/rooms/:id/files`, `GET/PATCH/DELETE /api/rooms/:id/files/:fileId`, `POST .../duplicate` |
+| Messages | `GET/POST/DELETE /api/rooms/:id/messages` |
+| Permissions | `GET/POST /api/rooms/:id/permissions` |
+| Execution | `GET/POST /api/rooms/:id/run` |
+| AI | `POST /api/rooms/:id/ai` |
+| Compiler | `GET /api/compile/languages`, `POST /api/compile` |
+| Health | `GET /api/health` |
+
+WebSockets: `GET /ws?roomId=…` (JSON room events) and `GET /yjs/<roomId>__<fileId>` (binary Yjs).
+
+Authentication uses an httpOnly JWT cookie **and** a bearer token returned by login/register, so
+LAN clients and non-browser tools both work.
+
+---
+
+## Keyboard Shortcuts
+
+| Shortcut | Action |
+| --- | --- |
+| `Ctrl/Cmd + Enter` | Run the active file |
+| `Ctrl/Cmd + S` | Force save / sync the CRDT document |
+| `Shift + Alt + F` | Format document |
+| `Ctrl/Cmd + B` | Toggle file explorer |
+| `Ctrl/Cmd + J` | Toggle output terminal |
+| `Alt + Z` | Toggle word wrap |
+| `F11` | Toggle focus/zen mode |
+| `Ctrl/Cmd + F` / `Ctrl/Cmd + H` | Find / replace |
+| `Ctrl/Cmd + G` | Go to line |
+| `?` | Open the shortcuts cheat sheet |
+
+---
+
+## Migrating from the previous Next.js version
+
+The previous Next.js/Prisma implementation is preserved locally in `legacy-next/`
+(gitignored) for reference; it is no longer part of the running stack.
+
+Existing SQLite data can be imported into MongoDB, including user ids, bcrypt password hashes,
+rooms, files, chat history, and permissions:
 
 ```bash
-# Push schema updates to dev.db
-pnpm run db:push
+# inspect first (no writes)
+node scripts/migrate-sqlite-to-mongo.mjs --dry-run
 
-# Seed development database with demo accounts and files
-pnpm run db:seed
+# replace the Mongo target with the legacy SQLite data
+node scripts/migrate-sqlite-to-mongo.mjs --fresh
+
+# or run without --fresh to upsert into an already-migrated database
+npm run migrate:legacy
 ```
 
-### Prisma Schema Models
-
-- **User**: `id`, `username`, `passwordHash`, `createdAt`, `updatedAt`
-- **Room**: `id`, `roomCode`, `name`, `description`, `passwordHash`, `isPublic`, `ownerId`
-- **RoomMember**: `id`, `roomId`, `userId`, `role` (OWNER / MEMBER), `joinedAt`
-- **File**: `id`, `roomId`, `parentId` (hierarchical folders), `name`, `type`, `language`, `content`
-- **Message**: `id`, `roomId`, `userId`, `content`, `createdAt`
-
----
-
-## Testing & Verification
-
-CodeRoom comes with an automated end-to-end verification script testing:
-1. User registration & validation
-2. Password authentication & secure HTTP-only cookies
-3. Room creation, joining, and permissions
-4. File CRUD and syntax language detection
-5. Real-time WebSocket room chat and presence
-6. Yjs binary CRDT document synchronization and concurrent edit convergence
-7. Database autosave debouncing
-
-To run the verification suite against a running server:
+Run the end-to-end API smoke suite (server must be running):
 
 ```bash
-pnpm test
-# or
-pnpm exec tsx test-coderoom.ts
+npm run smoke            # 38 checks: auth, rooms, files, messages, permissions, run, WS
 ```
-
-All 32 test cases verify real HTTP and WebSocket operations.
 
 ---
 
+## Troubleshooting
+
+**`MongooseServerSelectionError` / health says disconnected** — MongoDB is not reachable. Start
+the local service (`services.msc` → MongoDB), run `docker compose up -d mongo`, or update
+`MONGODB_URI` in `.env`.
+
+**Vite opens but API calls fail** — Express is not running on port 3000. Use `npm run dev` (both
+processes) and check `http://localhost:3000/api/health`.
+
+**WebSocket connects then drops** — check that your proxy forwards `Upgrade`/`Connection` headers
+for `/ws` and `/yjs`.
+
+**Run button returns a missing-runtime message** — install `python3`/`gcc`/`javac` on the host and
+restart the server so the PATH is reloaded, or rely on the cloud fallback.
+
+**Production page returns JSON 404** — rebuild the client (`npm run build`) so `client/dist` exists
+where Express serves it.
+
+---
 
 ## License
 
-MIT License. Open source and self-hostable.
+Private project. All rights reserved unless a `LICENSE` file is added.

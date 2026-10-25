@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en" class="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, maximum-scale=5, viewport-fit=cover"
+    />
+    <meta
+      name="description"
+      content="A lightweight collaborative coding room for teams, classmates, and friends."
+    />
+    <meta name="theme-color" content="#09090b" />
+    <title>CodeRoom — Code together. Anywhere.</title>
+    <link
+      rel="preload"
+      href="/fonts/GeistVF.woff"
+      as="font"
+      type="font/woff"
+      crossorigin
+    />
+    <link
+      rel="preload"
+      href="/fonts/GeistMonoVF.woff"
+      as="font"
+      type="font/woff"
+      crossorigin
+    />
+    <script>
+      (function () {
+        try {
+          var saved = localStorage.getItem("coderoom_theme");
+          var root = document.documentElement;
+          root.classList.remove("dark", "light");
+          if (saved === "light") {
+            root.classList.add("light");
+          } else {
+            root.classList.add("dark");
+          }
+        } catch (e) {}
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

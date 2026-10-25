@@ -1,37 +1,26 @@
 #!/bin/sh
 set -e
 
-# Default to persistent data volume if DATABASE_URL is not set
-if [ -z "$DATABASE_URL" ]; then
-  export DATABASE_URL="file:/app/data/coderoom.db"
-fi
-
-# If using a file-based SQLite database, ensure directory exists
-case "$DATABASE_URL" in
-  file:*)
-    DB_FILE_PATH="${DATABASE_URL#file:}"
-    DB_DIR="$(dirname "$DB_FILE_PATH")"
-    if [ ! -d "$DB_DIR" ]; then
-      mkdir -p "$DB_DIR"
-    fi
-    ;;
-esac
-
 echo "======================================================="
-echo "🚀 Initializing CodeRoom Database..."
-echo "📁 DATABASE_URL: $DATABASE_URL"
+echo "  CodeRoom — MERN server starting"
+echo "  MongoDB: ${MONGODB_URI:-mongodb://mongo:27017/coderoom}"
+echo "  Port:    ${PORT:-3000}"
+echo "======================================================="
 
-# Automatically apply Prisma schema migrations to SQLite
-npx prisma db push --skip-generate
-
-# Seed demo data if requested via environment variable
+# Optional: seed demo users and room on first boot.
 if [ "$SEED_DATABASE" = "true" ] || [ "$SEED_DEMO_DATA" = "true" ]; then
-  echo "🌱 Seeding initial demo data..."
-  npx tsx prisma/seed.ts || echo "⚠️ Database seed skipped or already applied."
+  echo "[seed] Loading demo data (idempotent)..."
+  attempt=1
+  while [ "$attempt" -le 10 ]; do
+    if node dist/seed.js; then
+      echo "[seed] Demo data ready."
+      break
+    fi
+    echo "[seed] MongoDB not ready yet (attempt ${attempt}/10), retrying in 3s..."
+    attempt=$((attempt + 1))
+    sleep 3
+  done
 fi
 
-echo "✅ Database ready."
-echo "======================================================="
-
-# Execute the application command
+# Execute the application command (defaults to node dist/index.js).
 exec "$@"
